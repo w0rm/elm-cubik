@@ -50,7 +50,7 @@ type State
     | Rotating Mouse.Position -- rotating the cube
     | Selected Int -- mouse is released on the same cell, it was selected
     | TransformStart Int Mouse.Position -- transform started (accumulating minimum distance)
-    | Transforming Int (Set Int) Rotation Float Vec3 -- calculated which cells are rotating and axis
+    | Transforming Int (Set Int) Rotation Float Mouse.Position -- calculated which cells are rotating and axis
 
 
 type Msg

@@ -11,6 +11,9 @@ import Types exposing (..)
 import Utils exposing (..)
 import Set
 import Dict
+import Touch
+import SingleTouch
+import Mouse
 
 
 type alias Uniforms =
@@ -40,15 +43,37 @@ cellAttributes =
     ]
 
 
+touchToMouse : Touch.Coordinates -> Mouse.Position
+touchToMouse coordinates =
+    let
+        ( x, y ) =
+            Touch.clientPos coordinates
+    in
+        Mouse.Position (round x) (round y)
+
+
 view : Model -> Html Msg
 view model =
     WebGL.toHtmlWith
         [ WebGL.depth 1
         , WebGL.clearColor 0 0 0 1
         ]
-        [ width model.window.width
-        , height model.window.height
+        [ width
+            (if model.window.width == 0 then
+                1
+             else
+                model.window.width
+            )
+        , height
+            (if model.window.height == 0 then
+                1
+             else
+                model.window.height
+            )
         , style [ ( "display", "block" ) ]
+        , SingleTouch.onStart (touchToMouse >> Down)
+        , SingleTouch.onMove (touchToMouse >> Move)
+        , SingleTouch.onEnd (touchToMouse >> Up)
         ]
         (Dict.foldl (cellEntity model) [] model.cubik)
 

@@ -17,7 +17,10 @@ import Utils exposing (..)
 model : Model
 model =
     { state = Initial
-    , rotation = Mat4.identity
+    , rotation =
+        Mat4.identity
+            |> Mat4.mul (Mat4.makeRotate (pi / 4) Vec3.j)
+            |> Mat4.mul (Mat4.makeRotate (-pi / 4) Vec3.i)
     , perspective = Mat4.identity
     , camera = Mat4.makeLookAt origin (vec3 0 0 0) Vec3.j
     , window = Window.Size 0 0
@@ -49,11 +52,16 @@ main =
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    case msg of
+    case Debug.log "" msg of
         Resize window ->
             ( { model
                 | window = window
-                , perspective = Mat4.makePerspective 45 (toFloat window.width / toFloat window.height) 0.01 100
+                , perspective =
+                    Mat4.makePerspective
+                        45
+                        (toFloat window.width / toFloat window.height)
+                        0.01
+                        100
               }
             , Cmd.none
             )
@@ -96,71 +104,65 @@ update msg model =
                             ( { model | state = Initial }, Cmd.none )
 
                 Transforming _ cells axis angle _ ->
-                    let
-                        closestAngle =
-                            toFloat (round (angle / (pi / 2))) * pi / 2
-                    in
-                        ( { model
-                            | state = Initial
-                            , cubik =
-                                Dict.map
-                                    (\cellId cell ->
-                                        if Set.member cellId cells then
-                                            rotateCell axis closestAngle cell
-                                        else
-                                            cell
-                                    )
-                                    model.cubik
-                          }
-                        , Cmd.none
-                        )
+                    ( transform cells axis angle model, Cmd.none )
 
                 _ ->
                     ( { model | state = Initial }, Cmd.none )
 
         Move mouse ->
             case model.state of
-                Clicked _ position ->
-                    ( { model
-                        | state = Rotating mouse
-                        , rotation =
-                            model.rotation
-                                |> Mat4.mul (Mat4.makeRotate (toFloat (mouse.x - position.x) * 0.005) Vec3.j)
-                                |> Mat4.mul (Mat4.makeRotate (toFloat (position.y - mouse.y) * 0.005) Vec3.i)
-                      }
-                    , Cmd.none
-                    )
+                Clicked _ source ->
+                    ( rotate source mouse model, Cmd.none )
 
-                Rotating position ->
-                    ( { model
-                        | state = Rotating mouse
-                        , rotation =
-                            model.rotation
-                                |> Mat4.mul (Mat4.makeRotate (toFloat (mouse.x - position.x) * 0.005) Vec3.j)
-                                |> Mat4.mul (Mat4.makeRotate (toFloat (position.y - mouse.y) * 0.005) Vec3.i)
-                      }
-                    , Cmd.none
-                    )
+                Rotating source ->
+                    ( rotate source mouse model, Cmd.none )
 
                 TransformStart cellId position ->
-                    if sqr (position.x - mouse.x) + sqr (position.y - mouse.y) > 100 then
-                        ( startTransforming cellId position mouse model
-                        , Cmd.none
-                        )
+                    if (position.x - mouse.x) ^ 2 + (position.y - mouse.y) ^ 2 > 100 then
+                        ( startTransforming cellId position mouse model, Cmd.none )
                     else
                         ( model, Cmd.none )
 
-                Transforming cellId cells axis angle from ->
-                    ( transforming cellId cells mouse axis angle from model
-                    , Cmd.none
-                    )
+                Transforming cellId cells axis angle source ->
+                    ( transforming cellId cells source mouse axis angle model, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
 
 
+transform : Set Int -> Rotation -> Float -> Model -> Model
+transform cells axis angle model =
+    let
+        closestAngle =
+            toFloat (round (angle / (pi / 2))) * pi / 2
+    in
+        { model
+            | state = Initial
+            , cubik =
+                Dict.map
+                    (\cellId cell ->
+                        if Set.member cellId cells then
+                            rotateCell axis closestAngle cell
+                        else
+                            cell
+                    )
+                    model.cubik
+        }
+
+
+rotate : Mouse.Position -> Mouse.Position -> Model -> Model
+rotate source dest model =
+    { model
+        | state = Rotating dest
+        , rotation =
+            model.rotation
+                |> Mat4.mul (Mat4.makeRotate (toFloat (dest.x - source.x) * 0.005) Vec3.j)
+                |> Mat4.mul (Mat4.makeRotate (toFloat (source.y - dest.y) * 0.005) Vec3.i)
+    }
+
+
 startTransforming : Int -> Mouse.Position -> Mouse.Position -> Model -> Model
-startTransforming cellId mouse dest model =
+startTransforming cellId source dest model =
     let
         cell =
             case Dict.get cellId model.cubik of
@@ -168,69 +170,50 @@ startTransforming cellId mouse dest model =
                     c
 
                 Nothing ->
-                    Debug.crash "shouldn't happen"
-
-        inverseRot =
-            Mat4.inverseOrthonormal model.rotation
-
-        fromCoord =
-            cell.transform
-                |> Mat4.mul model.rotation
-                |> cellClickCoordinates (getMousePosition model mouse)
-                |> Maybe.withDefault (vec3 0 0 0)
-
-        toCoord =
-            rayPlaneIntersect
-                origin
-                (getMousePosition model dest)
-                (Mat4.transform model.rotation (cellPosition cell))
-                (Mat4.transform model.rotation cell.normal)
+                    Debug.crash "Shouldn't happen"
 
         ( x, y, z ) =
-            Maybe.map (Vec3.sub fromCoord) toCoord
-                |> Maybe.map (Mat4.transform inverseRot)
-                |> Maybe.withDefault (vec3 0 0 0)
-                |> Vec3.toTuple
+            rotationDirection cell model source dest
 
         ( axis, angle ) =
             case round3 cell.normal of
                 ( 0, 0, -1 ) ->
-                    --"red, front"
+                    -- front
                     if abs x < abs y then
                         ( XAxis, -y )
                     else
                         ( YAxis, x )
 
                 ( 0, 0, 1 ) ->
-                    --"white, back"
+                    -- back
                     if abs x < abs y then
                         ( XAxis, y )
                     else
                         ( YAxis, -x )
 
                 ( -1, 0, 0 ) ->
-                    --"yellow, right"
+                    -- right
                     if abs z < abs y then
                         ( ZAxis, y )
                     else
                         ( YAxis, -z )
 
                 ( 1, 0, 0 ) ->
-                    --"orange, left"
+                    -- left
                     if abs z < abs y then
                         ( ZAxis, -y )
                     else
                         ( YAxis, z )
 
                 ( 0, 1, 0 ) ->
-                    --"green, top"
+                    -- top
                     if abs x < abs z then
                         ( XAxis, -z )
                     else
                         ( ZAxis, x )
 
                 ( 0, -1, 0 ) ->
-                    --"blue, bottom"
+                    -- bottom
                     if abs x < abs z then
                         ( XAxis, z )
                     else
@@ -242,54 +225,11 @@ startTransforming cellId mouse dest model =
         cells =
             selectCells cell axis model.cubik
     in
-        { model
-            | state = Transforming cellId cells axis angle fromCoord -- TODO: correct
-        }
+        { model | state = Transforming cellId cells axis angle source }
 
 
-selectCells : Cell -> Rotation -> Dict Int Cell -> Set Int
-selectCells selectedCell axis cells =
-    let
-        ( x, y, z ) =
-            round3 (cellPosition selectedCell)
-    in
-        case axis of
-            XAxis ->
-                Dict.foldl
-                    (\cellId cell ->
-                        if round (Vec3.getX (cellPosition cell)) == x then
-                            Set.insert cellId
-                        else
-                            identity
-                    )
-                    Set.empty
-                    cells
-
-            YAxis ->
-                Dict.foldl
-                    (\cellId cell ->
-                        if round (Vec3.getY (cellPosition cell)) == y then
-                            Set.insert cellId
-                        else
-                            identity
-                    )
-                    Set.empty
-                    cells
-
-            ZAxis ->
-                Dict.foldl
-                    (\cellId cell ->
-                        if round (Vec3.getZ (cellPosition cell)) == z then
-                            Set.insert cellId
-                        else
-                            identity
-                    )
-                    Set.empty
-                    cells
-
-
-transforming : Int -> Set Int -> Mouse.Position -> Rotation -> Float -> Vec3 -> Model -> Model
-transforming cellId cells dest axis angle fromCoord model =
+transforming : Int -> Set Int -> Mouse.Position -> Mouse.Position -> Rotation -> Float -> Model -> Model
+transforming cellId cells source dest axis angle model =
     let
         cell =
             case Dict.get cellId model.cubik of
@@ -297,79 +237,87 @@ transforming cellId cells dest axis angle fromCoord model =
                     c
 
                 Nothing ->
-                    Debug.crash "shouldn't happen"
-
-        inverseRot =
-            Mat4.inverseOrthonormal model.rotation
-
-        toCoord =
-            rayPlaneIntersect
-                origin
-                (getMousePosition model dest)
-                (Mat4.transform model.rotation (cellPosition cell))
-                (Mat4.transform model.rotation cell.normal)
+                    Debug.crash "Shouldn't happen"
 
         ( x, y, z ) =
-            Maybe.map (Vec3.sub fromCoord) toCoord
-                |> Maybe.map (Mat4.transform inverseRot)
-                |> Maybe.withDefault (vec3 0 0 0)
-                |> Vec3.toTuple
+            rotationDirection cell model source dest
 
         angle =
             case round3 cell.normal of
                 ( 0, 0, -1 ) ->
-                    -- red, front
+                    -- front
                     if axis == XAxis then
                         -y
                     else
                         x
 
                 ( 0, 0, 1 ) ->
-                    -- white, back
+                    -- back
                     if axis == XAxis then
                         y
                     else
                         -x
 
                 ( -1, 0, 0 ) ->
-                    -- yellow, right
+                    -- right
                     if axis == ZAxis then
                         y
                     else
                         -z
 
                 ( 1, 0, 0 ) ->
-                    -- orange, left
+                    -- left
                     if axis == ZAxis then
                         -y
                     else
                         z
 
                 ( 0, 1, 0 ) ->
-                    -- green, top
+                    -- top
                     if axis == XAxis then
                         -z
                     else
                         x
 
                 ( 0, -1, 0 ) ->
-                    -- blue, bottom
+                    -- bottom
                     if axis == XAxis then
                         z
                     else
                         -x
 
                 _ ->
-                    0
+                    Debug.crash "Shouldn't happen"
     in
-        { model
-            | state = Transforming cellId cells axis angle fromCoord -- TODO: correct
-        }
+        { model | state = Transforming cellId cells axis angle source }
 
 
-sqr : number -> number
-sqr a =
-    a * a
+selectCells : Cell -> Rotation -> Dict Int Cell -> Set Int
+selectCells selectedCell axis cells =
+    let
+        selectedPosition =
+            cellPosition selectedCell
+
+        fn =
+            case axis of
+                XAxis ->
+                    Vec3.getX
+
+                YAxis ->
+                    Vec3.getY
+
+                ZAxis ->
+                    Vec3.getZ
+    in
+        Dict.foldl
+            (\cellId cell ->
+                if round (fn (cellPosition cell)) == round (fn selectedPosition) then
+                    Set.insert cellId
+                else
+                    identity
+            )
+            Set.empty
+            cells
 
 
 selectCell : Mouse.Position -> Model -> Maybe ( Int, Cell )
@@ -396,22 +344,22 @@ cubik =
 makeSide : Color -> List Cell
 makeSide color =
     case color of
-        Red ->
+        Green ->
             frontFace color
 
-        White ->
+        Blue ->
             List.map (rotateCell XAxis pi) (frontFace color)
 
-        Green ->
+        White ->
             List.map (rotateCell XAxis (pi / 2)) (frontFace color)
 
-        Blue ->
+        Yellow ->
             List.map (rotateCell XAxis (-pi / 2)) (frontFace color)
 
         Orange ->
             List.map (rotateCell YAxis (-pi / 2)) (frontFace color)
 
-        Yellow ->
+        Red ->
             List.map (rotateCell YAxis (pi / 2)) (frontFace color)
 
 
@@ -440,6 +388,31 @@ cellClickCoordinates destination transform =
         |> List.head
 
 
+rotationDirection : Cell -> Model -> Mouse.Position -> Mouse.Position -> ( Float, Float, Float )
+rotationDirection cell model source dest =
+    let
+        inverseRot =
+            Mat4.inverseOrthonormal model.rotation
+
+        fromCoord =
+            rayPlaneIntersect
+                origin
+                (getMousePosition model source)
+                (Mat4.transform model.rotation (cellPosition cell))
+                (Mat4.transform model.rotation cell.normal)
+
+        toCoord =
+            rayPlaneIntersect
+                origin
+                (getMousePosition model dest)
+                (Mat4.transform model.rotation (cellPosition cell))
+                (Mat4.transform model.rotation cell.normal)
+    in
+        Maybe.map2 Vec3.sub fromCoord toCoord
+            |> Maybe.map (Mat4.transform inverseRot >> Vec3.toTuple)
+            |> Maybe.withDefault ( 0, 0, 0 )
+
+
 getMousePosition : Model -> Mouse.Position -> Vec3
 getMousePosition { window, perspective, camera } mouse =
     let
@@ -463,11 +436,8 @@ getMousePosition { window, perspective, camera } mouse =
                 -1
                 0
 
-        invertedViewMatrix =
-            Mat4.inverseOrthonormal camera
-
         vec4WorldCoordinates =
-            transform4 invertedViewMatrix direction
+            transform4 (Mat4.inverseOrthonormal camera) direction
 
         vec3WorldCoordinates =
             vec3
