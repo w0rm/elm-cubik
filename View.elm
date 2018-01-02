@@ -58,19 +58,13 @@ view model =
         [ WebGL.depth 1
         , WebGL.clearColor 0 0 0 1
         ]
-        [ width
-            (if model.window.width == 0 then
-                1
-             else
-                model.window.width
-            )
-        , height
-            (if model.window.height == 0 then
-                1
-             else
-                model.window.height
-            )
-        , style [ ( "display", "block" ) ]
+        [ width (round (toFloat model.window.width * model.devicePixelRatio))
+        , height (round (toFloat model.window.height * model.devicePixelRatio))
+        , style
+            [ ( "display", "block" )
+            , ( "width", toString model.window.width ++ "px" )
+            , ( "height", toString model.window.height ++ "px" )
+            ]
         , SingleTouch.onStart (touchToMouse >> Down)
         , SingleTouch.onMove (touchToMouse >> Move)
         , SingleTouch.onEnd (touchToMouse >> Up)
@@ -86,14 +80,11 @@ cellEntity model id cell =
 
         ( isHighlighted, rotationFunc ) =
             case model.state of
-                Selected cellId ->
-                    ( cellId == id, identity )
-
                 TransformStart cellId _ ->
                     ( cellId == id, identity )
 
                 Transforming cellId cells axis rot _ ->
-                    if cellId == id || Set.member id cells then
+                    if Set.member id cells then
                         ( cellId == id, Mat4.mul (makeRotation axis rot) )
                     else
                         ( False, identity )

@@ -12,31 +12,13 @@ import Dict exposing (Dict)
 import Types exposing (..)
 import View exposing (view, cellAttributes)
 import Utils exposing (..)
+import Json.Decode as Decode exposing (Value)
 
 
-model : Model
-model =
-    { state = Initial
-    , rotation =
-        Mat4.identity
-            |> Mat4.mul (Mat4.makeRotate (pi / 4) Vec3.j)
-            |> Mat4.mul (Mat4.makeRotate (-pi / 4) Vec3.i)
-    , perspective = Mat4.identity
-    , camera = Mat4.makeLookAt origin (vec3 0 0 0) Vec3.j
-    , window = Window.Size 0 0
-    , cubik = cubik
-    }
-
-
-origin : Vec3
-origin =
-    vec3 0 0 -10
-
-
-main : Program Never Model Msg
+main : Program Value Model Msg
 main =
-    Html.program
-        { init = ( model, Task.perform Resize Window.size )
+    Html.programWithFlags
+        { init = init
         , update = update
         , view = view
         , subscriptions =
@@ -48,6 +30,44 @@ main =
                     , Mouse.ups Up
                     ]
         }
+
+
+init : Value -> ( Model, Cmd Msg )
+init value =
+    let
+        width =
+            Decode.decodeValue (Decode.field "width" Decode.int) value
+                |> Result.withDefault 0
+
+        height =
+            Decode.decodeValue (Decode.field "height" Decode.int) value
+                |> Result.withDefault 0
+
+        devicePixelRatio =
+            Decode.decodeValue (Decode.field "devicePixelRatio" Decode.float) value
+                |> Result.withDefault 1
+    in
+        ( { state = Initial
+          , rotation =
+                Mat4.identity
+                    |> Mat4.mul (Mat4.makeRotate (pi / 4) Vec3.j)
+                    |> Mat4.mul (Mat4.makeRotate (-pi / 4) Vec3.i)
+          , perspective = Mat4.identity
+          , camera = Mat4.makeLookAt origin (vec3 0 0 0) Vec3.j
+          , window = Window.Size width height
+          , devicePixelRatio = devicePixelRatio
+          , cubik = cubik
+          }
+        , if width == 0 then
+            Task.perform Resize Window.size
+          else
+            Cmd.none
+        )
+
+
+origin : Vec3
+origin =
+    vec3 0 0 -11
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -71,18 +91,7 @@ update msg model =
                 Initial ->
                     case selectCell mouse model of
                         Just ( id, cell ) ->
-                            ( { model | state = Clicked id mouse }, Cmd.none )
-
-                        Nothing ->
-                            ( { model | state = Rotating mouse }, Cmd.none )
-
-                Selected cellId ->
-                    case selectCell mouse model of
-                        Just ( id, cell ) ->
-                            if id == cellId then
-                                ( { model | state = TransformStart id mouse }, Cmd.none )
-                            else
-                                ( { model | state = Clicked id mouse }, Cmd.none )
+                            ( { model | state = TransformStart id mouse }, Cmd.none )
 
                         Nothing ->
                             ( { model | state = Rotating mouse }, Cmd.none )
@@ -92,17 +101,6 @@ update msg model =
 
         Up mouse ->
             case model.state of
-                Clicked cellId mouse ->
-                    case selectCell mouse model of
-                        Just ( id, cell ) ->
-                            if id == cellId then
-                                ( { model | state = Selected id }, Cmd.none )
-                            else
-                                ( { model | state = Initial }, Cmd.none )
-
-                        Nothing ->
-                            ( { model | state = Initial }, Cmd.none )
-
                 Transforming _ cells axis angle _ ->
                     ( transform cells axis angle model, Cmd.none )
 
@@ -111,9 +109,6 @@ update msg model =
 
         Move mouse ->
             case model.state of
-                Clicked _ source ->
-                    ( rotate source mouse model, Cmd.none )
-
                 Rotating source ->
                     ( rotate source mouse model, Cmd.none )
 
