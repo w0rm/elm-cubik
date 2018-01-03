@@ -1,4 +1,4 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 import Html exposing (Html, div)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
@@ -12,7 +12,12 @@ import Dict exposing (Dict)
 import Types exposing (..)
 import View exposing (view, cellAttributes)
 import Utils exposing (..)
-import Json.Decode as Decode exposing (Value)
+import Decode exposing (origin)
+import Encode
+import Json.Encode exposing (Value)
+
+
+port save : Value -> Cmd msg
 
 
 main : Program Value Model Msg
@@ -34,45 +39,14 @@ main =
 
 init : Value -> ( Model, Cmd Msg )
 init value =
-    let
-        width =
-            Decode.decodeValue (Decode.field "width" Decode.int) value
-                |> Result.withDefault 0
-
-        height =
-            Decode.decodeValue (Decode.field "height" Decode.int) value
-                |> Result.withDefault 0
-
-        devicePixelRatio =
-            Decode.decodeValue (Decode.field "devicePixelRatio" Decode.float) value
-                |> Result.withDefault 1
-    in
-        ( { state = Initial
-          , rotation =
-                Mat4.identity
-                    |> Mat4.mul (Mat4.makeRotate (pi / 4) Vec3.j)
-                    |> Mat4.mul (Mat4.makeRotate (-pi / 4) Vec3.i)
-          , perspective = Mat4.identity
-          , camera = Mat4.makeLookAt origin (vec3 0 0 0) Vec3.j
-          , window = Window.Size width height
-          , devicePixelRatio = devicePixelRatio
-          , cubik = cubik
-          }
-        , if width == 0 then
-            Task.perform Resize Window.size
-          else
-            Cmd.none
-        )
-
-
-origin : Vec3
-origin =
-    vec3 0 0 -11
+    ( Decode.model value
+    , Task.perform Resize Window.size
+    )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    case Debug.log "" msg of
+    case msg of
         Resize window ->
             ( { model
                 | window = window
@@ -102,10 +76,14 @@ update msg model =
         Up mouse ->
             case model.state of
                 Transforming _ cells axis angle _ ->
-                    ( transform cells axis angle model, Cmd.none )
+                    let
+                        newModel =
+                            transform cells axis angle model
+                    in
+                        ( newModel, save (Encode.model newModel) )
 
                 _ ->
-                    ( { model | state = Initial }, Cmd.none )
+                    ( { model | state = Initial }, save (Encode.model model) )
 
         Move mouse ->
             case model.state of
@@ -327,46 +305,6 @@ selectCell mouse model =
             )
         |> Dict.toList
         |> List.head
-
-
-cubik : Dict Int Cell
-cubik =
-    List.concatMap makeSide [ Red, Green, White, Blue, Orange, Yellow ]
-        |> List.indexedMap (,)
-        |> Dict.fromList
-
-
-makeSide : Color -> List Cell
-makeSide color =
-    case color of
-        Green ->
-            frontFace color
-
-        Blue ->
-            List.map (rotateCell XAxis pi) (frontFace color)
-
-        White ->
-            List.map (rotateCell XAxis (pi / 2)) (frontFace color)
-
-        Yellow ->
-            List.map (rotateCell XAxis (-pi / 2)) (frontFace color)
-
-        Orange ->
-            List.map (rotateCell YAxis (-pi / 2)) (frontFace color)
-
-        Red ->
-            List.map (rotateCell YAxis (pi / 2)) (frontFace color)
-
-
-frontFace : Color -> List Cell
-frontFace color =
-    List.range -1 1
-        |> List.concatMap
-            (\x ->
-                List.map
-                    (\y -> Cell (Mat4.makeTranslate3 (toFloat x) (toFloat y) -1) color (vec3 0 0 -1))
-                    (List.range -1 1)
-            )
 
 
 cellClickCoordinates : Vec3 -> Mat4 -> Maybe Vec3
