@@ -4,6 +4,68 @@ import Types exposing (..)
 import Math.Vector4 as Vec4 exposing (Vec4, vec4)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Matrix4 as Mat4 exposing (Mat4)
+import Random exposing (Generator)
+
+
+randomTransformations : Int -> Generator (List Transformation)
+randomTransformations i =
+    randomTransformationsHelp
+        (i - 1)
+        (Random.map (\t -> [ t ]) randomTransformation)
+
+
+randomTransformationsHelp : Int -> Generator (List Transformation) -> Generator (List Transformation)
+randomTransformationsHelp i =
+    if i == 0 then
+        identity
+    else
+        Random.andThen
+            (\transforms -> Random.map (\t -> t :: transforms) randomTransformation)
+            >> randomTransformationsHelp (i - 1)
+
+
+randomTransformation : Generator Transformation
+randomTransformation =
+    Random.map3 Transformation
+        randomRotation
+        randomAngle
+        (Random.int -1 1)
+
+
+randomRotation : Generator Rotation
+randomRotation =
+    Random.int 0 2
+        |> Random.map
+            (\i ->
+                case i of
+                    0 ->
+                        XAxis
+
+                    1 ->
+                        YAxis
+
+                    _ ->
+                        ZAxis
+            )
+
+
+randomAngle : Generator Float
+randomAngle =
+    Random.int -2 2
+        |> Random.map (toFloat >> (*) (pi / 2))
+
+
+cellRotationCoord : Rotation -> Cell -> Int
+cellRotationCoord axis cell =
+    case axis of
+        XAxis ->
+            round (Vec3.getX (cellPosition cell))
+
+        YAxis ->
+            round (Vec3.getY (cellPosition cell))
+
+        ZAxis ->
+            round (Vec3.getZ (cellPosition cell))
 
 
 rotateCell : Rotation -> Float -> Cell -> Cell

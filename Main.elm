@@ -7,7 +7,6 @@ import Math.Matrix4 as Mat4 exposing (Mat4)
 import Window
 import Mouse
 import Task
-import Set exposing (Set)
 import Dict exposing (Dict)
 import Types exposing (..)
 import View exposing (view, cellAttributes)
@@ -15,6 +14,7 @@ import Utils exposing (..)
 import Decode exposing (origin)
 import Encode
 import Json.Encode exposing (Value)
+import Random
 
 
 port save : Value -> Cmd msg
@@ -40,13 +40,20 @@ main =
 init : Value -> ( Model, Cmd Msg )
 init value =
     ( Decode.model value
-    , Task.perform Resize Window.size
+    , Cmd.batch
+        [ Task.perform Resize Window.size
+
+        --, Random.generate Transform (randomTransformations 30)
+        ]
     )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        Transform transformations ->
+            ( List.foldl transform model transformations, Cmd.none )
+
         Resize window ->
             ( { model
                 | window = window
@@ -60,6 +67,7 @@ update msg model =
             , Cmd.none
             )
 
+        -- Interactions
         Down mouse ->
             case model.state of
                 Initial ->
@@ -75,10 +83,10 @@ update msg model =
 
         Up mouse ->
             case model.state of
-                Transforming _ cells axis angle _ ->
+                Transforming _ transformation _ ->
                     let
                         newModel =
-                            transform cells axis angle model
+                            transform transformation model
                     in
                         ( newModel, save (Encode.model newModel) )
 
@@ -96,15 +104,15 @@ update msg model =
                     else
                         ( model, Cmd.none )
 
-                Transforming cellId cells axis angle source ->
-                    ( transforming cellId cells source mouse axis angle model, Cmd.none )
+                Transforming cellId transformation source ->
+                    ( transforming cellId transformation source mouse model, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
 
 
-transform : Set Int -> Rotation -> Float -> Model -> Model
-transform cells axis angle model =
+transform : Transformation -> Model -> Model
+transform { coord, axis, angle } model =
     let
         closestAngle =
             toFloat (round (angle / (pi / 2))) * pi / 2
@@ -113,8 +121,8 @@ transform cells axis angle model =
             | state = Initial
             , cubik =
                 Dict.map
-                    (\cellId cell ->
-                        if Set.member cellId cells then
+                    (\_ cell ->
+                        if cellRotationCoord axis cell == coord then
                             rotateCell axis closestAngle cell
                         else
                             cell
@@ -150,42 +158,42 @@ startTransforming cellId source dest model =
 
         ( axis, angle ) =
             case round3 cell.normal of
-                ( 0, 0, -1 ) ->
+                ( _, _, -1 ) ->
                     -- front
                     if abs x < abs y then
                         ( XAxis, -y )
                     else
                         ( YAxis, x )
 
-                ( 0, 0, 1 ) ->
+                ( _, _, 1 ) ->
                     -- back
                     if abs x < abs y then
                         ( XAxis, y )
                     else
                         ( YAxis, -x )
 
-                ( -1, 0, 0 ) ->
+                ( -1, _, _ ) ->
                     -- right
                     if abs z < abs y then
                         ( ZAxis, y )
                     else
                         ( YAxis, -z )
 
-                ( 1, 0, 0 ) ->
+                ( 1, _, _ ) ->
                     -- left
                     if abs z < abs y then
                         ( ZAxis, -y )
                     else
                         ( YAxis, z )
 
-                ( 0, 1, 0 ) ->
+                ( _, 1, _ ) ->
                     -- top
                     if abs x < abs z then
                         ( XAxis, -z )
                     else
                         ( ZAxis, x )
 
-                ( 0, -1, 0 ) ->
+                ( _, -1, _ ) ->
                     -- bottom
                     if abs x < abs z then
                         ( XAxis, z )
@@ -195,15 +203,18 @@ startTransforming cellId source dest model =
                 _ ->
                     Debug.crash "Shouldn't happen"
 
-        cells =
-            selectCells cell axis model.cubik
+        coord =
+            cellRotationCoord axis cell
     in
-        { model | state = Transforming cellId cells axis angle source }
+        { model | state = Transforming cellId { coord = coord, axis = axis, angle = angle } source }
 
 
-transforming : Int -> Set Int -> Mouse.Position -> Mouse.Position -> Rotation -> Float -> Model -> Model
-transforming cellId cells source dest axis angle model =
+transforming : Int -> Transformation -> Mouse.Position -> Mouse.Position -> Model -> Model
+transforming cellId transformation source dest model =
     let
+        axis =
+            transformation.axis
+
         cell =
             case Dict.get cellId model.cubik of
                 Just c ->
@@ -217,42 +228,42 @@ transforming cellId cells source dest axis angle model =
 
         angle =
             case round3 cell.normal of
-                ( 0, 0, -1 ) ->
+                ( _, _, -1 ) ->
                     -- front
                     if axis == XAxis then
                         -y
                     else
                         x
 
-                ( 0, 0, 1 ) ->
+                ( _, _, 1 ) ->
                     -- back
                     if axis == XAxis then
                         y
                     else
                         -x
 
-                ( -1, 0, 0 ) ->
+                ( -1, _, _ ) ->
                     -- right
                     if axis == ZAxis then
                         y
                     else
                         -z
 
-                ( 1, 0, 0 ) ->
+                ( 1, _, _ ) ->
                     -- left
                     if axis == ZAxis then
                         -y
                     else
                         z
 
-                ( 0, 1, 0 ) ->
+                ( _, 1, _ ) ->
                     -- top
                     if axis == XAxis then
                         -z
                     else
                         x
 
-                ( 0, -1, 0 ) ->
+                ( _, -1, _ ) ->
                     -- bottom
                     if axis == XAxis then
                         z
@@ -262,35 +273,7 @@ transforming cellId cells source dest axis angle model =
                 _ ->
                     Debug.crash "Shouldn't happen"
     in
-        { model | state = Transforming cellId cells axis angle source }
-
-
-selectCells : Cell -> Rotation -> Dict Int Cell -> Set Int
-selectCells selectedCell axis cells =
-    let
-        selectedPosition =
-            cellPosition selectedCell
-
-        fn =
-            case axis of
-                XAxis ->
-                    Vec3.getX
-
-                YAxis ->
-                    Vec3.getY
-
-                ZAxis ->
-                    Vec3.getZ
-    in
-        Dict.foldl
-            (\cellId cell ->
-                if round (fn (cellPosition cell)) == round (fn selectedPosition) then
-                    Set.insert cellId
-                else
-                    identity
-            )
-            Set.empty
-            cells
+        { model | state = Transforming cellId { transformation | angle = angle } source }
 
 
 selectCell : Mouse.Position -> Model -> Maybe ( Int, Cell )

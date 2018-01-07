@@ -9,7 +9,6 @@ import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Types exposing (..)
 import Utils exposing (..)
-import Set
 import Dict
 import Touch
 import SingleTouch
@@ -83,9 +82,9 @@ cellEntity model id cell =
                 TransformStart cellId _ ->
                     ( cellId == id, identity )
 
-                Transforming cellId cells axis rot _ ->
-                    if Set.member id cells then
-                        ( cellId == id, Mat4.mul (makeRotation axis rot) )
+                Transforming cellId { coord, axis, angle } _ ->
+                    if cellRotationCoord axis cell == coord then
+                        ( cellId == id, Mat4.mul (makeRotation axis angle) )
                     else
                         ( False, identity )
 

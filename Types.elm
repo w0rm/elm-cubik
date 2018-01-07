@@ -5,7 +5,6 @@ import Math.Matrix4 as Mat4 exposing (Mat4)
 import Window
 import Mouse
 import Dict exposing (Dict)
-import Set exposing (Set)
 
 
 type Color
@@ -30,6 +29,13 @@ type alias Cell =
     }
 
 
+type alias Transformation =
+    { axis : Rotation
+    , angle : Float -- todo make int of pi/2 ?
+    , coord : Int
+    }
+
+
 type alias Attributes =
     { position : Vec3 }
 
@@ -49,7 +55,7 @@ type State
     = Initial
     | Rotating Mouse.Position -- rotating the cube
     | TransformStart Int Mouse.Position -- transform started (accumulating minimum distance)
-    | Transforming Int (Set Int) Rotation Float Mouse.Position -- calculated which cells are rotating and axis
+    | Transforming Int Transformation Mouse.Position -- calculated which cells are rotating and axis
 
 
 type Msg
@@ -57,3 +63,4 @@ type Msg
     | Move Mouse.Position
     | Up Mouse.Position
     | Down Mouse.Position
+    | Transform (List Transformation)
