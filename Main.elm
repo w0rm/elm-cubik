@@ -87,6 +87,9 @@ update msg model =
                     let
                         newModel =
                             transform transformation model
+
+                        _ =
+                            Debug.log "solved" (checkSolved newModel.cubik)
                     in
                         ( newModel, save (Encode.model newModel) )
 

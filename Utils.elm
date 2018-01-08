@@ -5,6 +5,39 @@ import Math.Vector4 as Vec4 exposing (Vec4, vec4)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Random exposing (Generator)
+import Dict exposing (Dict)
+
+
+checkSolved : Dict Int Cell -> Bool
+checkSolved =
+    Dict.values >> checkSolvedHelp Dict.empty
+
+
+checkSolvedHelp : Dict Int ( Int, Int, Int ) -> List Cell -> Bool
+checkSolvedHelp memo list =
+    case list of
+        [] ->
+            True
+
+        { color, normal } :: rest ->
+            let
+                intColor =
+                    colorToInt color
+
+                roundNormal =
+                    round3 normal
+            in
+                case Dict.get intColor memo of
+                    Just checkedNormal ->
+                        if roundNormal == checkedNormal then
+                            checkSolvedHelp memo rest
+                        else
+                            False
+
+                    Nothing ->
+                        checkSolvedHelp
+                            (Dict.insert (colorToInt color) roundNormal memo)
+                            rest
 
 
 randomTransformations : Int -> Generator (List Transformation)
@@ -182,3 +215,47 @@ rayTriangleIntersect rayOrigin rayDirection ( triangle0, triangle2, triangle1 ) 
                             Nothing
                         else
                             Just (Vec3.add rayOrigin (Vec3.scale ((Vec3.dot edge2 qvec) / det) (rayDirection)))
+
+
+colorToInt : Color -> Int
+colorToInt color =
+    case color of
+        Red ->
+            0
+
+        Green ->
+            1
+
+        White ->
+            2
+
+        Blue ->
+            3
+
+        Orange ->
+            4
+
+        Yellow ->
+            5
+
+
+colorToVec3 : Color -> Vec3
+colorToVec3 color =
+    case color of
+        Red ->
+            vec3 1 0 0
+
+        Green ->
+            vec3 0 1 0
+
+        White ->
+            vec3 1 1 1
+
+        Blue ->
+            vec3 0 0 1
+
+        Orange ->
+            vec3 1 0.647 0
+
+        Yellow ->
+            vec3 1 1 0

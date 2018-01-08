@@ -108,26 +108,7 @@ cellEntity model id cell =
             , perspective = perspective
             , rotation = model.rotation
             , transform = rotationFunc cell.transform
-            , color =
-                highlightFunc <|
-                    case cell.color of
-                        Red ->
-                            vec3 1 0 0
-
-                        Green ->
-                            vec3 0 1 0
-
-                        White ->
-                            vec3 1 1 1
-
-                        Blue ->
-                            vec3 0 0 1
-
-                        Orange ->
-                            vec3 1 0.647 0
-
-                        Yellow ->
-                            vec3 1 1 0
+            , color = highlightFunc (colorToVec3 cell.color)
             }
             |> (::)
 
