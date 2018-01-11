@@ -13,6 +13,7 @@ import Dict
 import Touch
 import SingleTouch
 import Mouse
+import Animation
 
 
 type alias Uniforms =
@@ -85,6 +86,12 @@ cellEntity model id cell =
                 Transforming cellId { coord, axis, angle } _ ->
                     if cellRotationCoord axis cell == coord then
                         ( cellId == id, Mat4.mul (makeRotation axis angle) )
+                    else
+                        ( False, identity )
+
+                Animating { coord, axis, angle } _ animation ->
+                    if cellRotationCoord axis cell == coord then
+                        ( False, Mat4.mul (makeRotation axis (Animation.animate model.time animation)) )
                     else
                         ( False, identity )
 

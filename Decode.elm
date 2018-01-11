@@ -44,6 +44,7 @@ model value =
         , window = Window.Size width height
         , devicePixelRatio = devicePixelRatio
         , cubik = cubik
+        , time = 0
         }
 
 

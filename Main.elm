@@ -15,6 +15,8 @@ import Decode exposing (origin)
 import Encode
 import Json.Encode exposing (Value)
 import Random
+import AnimationFrame
+import Animation
 
 
 port save : Value -> Cmd msg
@@ -33,6 +35,7 @@ main =
                     , Mouse.moves Move
                     , Mouse.downs Down
                     , Mouse.ups Up
+                    , AnimationFrame.diffs Tick
                     ]
         }
 
@@ -42,8 +45,7 @@ init value =
     ( Decode.model value
     , Cmd.batch
         [ Task.perform Resize Window.size
-
-        --, Random.generate Transform (randomTransformations 30)
+        , Random.generate Transform (randomTransformations 30)
         ]
     )
 
@@ -52,7 +54,23 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         Transform transformations ->
-            ( List.foldl transform model transformations, Cmd.none )
+            case transformations of
+                [] ->
+                    ( model, Cmd.none )
+
+                t :: rest ->
+                    ( { model
+                        | state =
+                            Animating t
+                                rest
+                                (Animation.animation model.time
+                                    |> Animation.from 0
+                                    |> Animation.to t.angle
+                                    |> Animation.duration 100
+                                )
+                      }
+                    , Cmd.none
+                    )
 
         Resize window ->
             ( { model
@@ -81,21 +99,6 @@ update msg model =
                 _ ->
                     ( model, Cmd.none )
 
-        Up mouse ->
-            case model.state of
-                Transforming _ transformation _ ->
-                    let
-                        newModel =
-                            transform transformation model
-
-                        _ =
-                            Debug.log "solved" (checkSolved newModel.cubik)
-                    in
-                        ( newModel, save (Encode.model newModel) )
-
-                _ ->
-                    ( { model | state = Initial }, save (Encode.model model) )
-
         Move mouse ->
             case model.state of
                 Rotating source ->
@@ -113,25 +116,81 @@ update msg model =
                 _ ->
                     ( model, Cmd.none )
 
+        Up mouse ->
+            case model.state of
+                Transforming _ transformation _ ->
+                    let
+                        closestAngle =
+                            toFloat (round (transformation.angle / (pi / 2))) * pi / 2
 
-transform : Transformation -> Model -> Model
-transform { coord, axis, angle } model =
-    let
-        closestAngle =
-            toFloat (round (angle / (pi / 2))) * pi / 2
-    in
-        { model
-            | state = Initial
-            , cubik =
-                Dict.map
-                    (\_ cell ->
-                        if cellRotationCoord axis cell == coord then
-                            rotateCell axis closestAngle cell
+                        animation =
+                            Animation.animation model.time
+                                |> Animation.from transformation.angle
+                                |> Animation.to closestAngle
+                                |> Animation.duration 100
+                    in
+                        ( { model
+                            | state =
+                                Animating
+                                    { transformation | angle = closestAngle }
+                                    []
+                                    animation
+                          }
+                        , Cmd.none
+                        )
+
+                _ ->
+                    ( { model | state = Initial }, save (Encode.model model) )
+
+        Tick diff ->
+            let
+                time =
+                    model.time + diff
+            in
+                case model.state of
+                    Animating transformation transformations animation ->
+                        if Animation.isDone time animation then
+                            let
+                                newModel =
+                                    { model | cubik = transform transformation model.cubik }
+                            in
+                                case transformations of
+                                    [] ->
+                                        ( { newModel | state = Initial, time = time }
+                                        , save (Encode.model newModel)
+                                        )
+
+                                    t :: rest ->
+                                        ( { newModel
+                                            | state =
+                                                Animating
+                                                    t
+                                                    rest
+                                                    (Animation.animation time
+                                                        |> Animation.to t.angle
+                                                        |> Animation.duration 200
+                                                    )
+                                            , time = time
+                                          }
+                                        , save (Encode.model newModel)
+                                        )
                         else
-                            cell
-                    )
-                    model.cubik
-        }
+                            ( { model | time = time }, Cmd.none )
+
+                    _ ->
+                        ( { model | time = time }, Cmd.none )
+
+
+transform : Transformation -> Dict Int Cell -> Dict Int Cell
+transform { coord, axis, angle } cubik =
+    Dict.map
+        (\_ cell ->
+            if cellRotationCoord axis cell == coord then
+                rotateCell axis angle cell
+            else
+                cell
+        )
+        cubik
 
 
 rotate : Mouse.Position -> Mouse.Position -> Model -> Model

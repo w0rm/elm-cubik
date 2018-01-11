@@ -5,6 +5,8 @@ import Math.Matrix4 as Mat4 exposing (Mat4)
 import Window
 import Mouse
 import Dict exposing (Dict)
+import Time exposing (Time)
+import Animation exposing (Animation)
 
 
 type Color
@@ -48,6 +50,7 @@ type alias Model =
     , window : Window.Size
     , devicePixelRatio : Float
     , cubik : Dict Int Cell
+    , time : Float
     }
 
 
@@ -56,10 +59,12 @@ type State
     | Rotating Mouse.Position -- rotating the cube
     | TransformStart Int Mouse.Position -- transform started (accumulating minimum distance)
     | Transforming Int Transformation Mouse.Position -- calculated which cells are rotating and axis
+    | Animating Transformation (List Transformation) Animation
 
 
 type Msg
-    = Resize Window.Size
+    = Tick Time
+    | Resize Window.Size
     | Move Mouse.Position
     | Up Mouse.Position
     | Down Mouse.Position
