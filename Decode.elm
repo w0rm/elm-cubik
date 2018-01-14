@@ -27,7 +27,7 @@ model value =
 
         devicePixelRatio =
             Decode.decodeValue (Decode.field "devicePixelRatio" Decode.float) value
-                |> Result.withDefault 1
+                |> Result.withDefault 2
 
         rotation =
             Decode.decodeValue (Decode.field "rotation" mat4) value

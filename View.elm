@@ -32,14 +32,59 @@ cellMesh =
 
 cellAttributes : List ( Attributes, Attributes, Attributes )
 cellAttributes =
-    [ ( Attributes (vec3 -0.45 0.45 -0.45)
-      , Attributes (vec3 -0.45 -0.45 -0.45)
-      , Attributes (vec3 0.45 0.45 -0.45)
+    [ ( Attributes (vec3 -0.45 0.45 -0.5)
+      , Attributes (vec3 -0.45 -0.45 -0.5)
+      , Attributes (vec3 0.45 0.45 -0.5)
       )
-    , ( Attributes (vec3 0.45 0.45 -0.45)
-      , Attributes (vec3 -0.45 -0.45 -0.45)
-      , Attributes (vec3 0.45 -0.45 -0.45)
+    , ( Attributes (vec3 0.45 0.45 -0.5)
+      , Attributes (vec3 -0.45 -0.45 -0.5)
+      , Attributes (vec3 0.45 -0.45 -0.5)
       )
+    ]
+
+
+cubeMesh : Mesh Attributes
+cubeMesh =
+    let
+        rft =
+            vec3 0.5 0.5 0.5
+
+        lft =
+            vec3 -0.5 0.5 0.5
+
+        lbt =
+            vec3 -0.5 -0.5 0.5
+
+        rbt =
+            vec3 0.5 -0.5 0.5
+
+        rbb =
+            vec3 0.5 -0.5 -0.5
+
+        rfb =
+            vec3 0.5 0.5 -0.5
+
+        lfb =
+            vec3 -0.5 0.5 -0.5
+
+        lbb =
+            vec3 -0.5 -0.5 -0.5
+    in
+        [ face rft rfb rbb rbt
+        , face rft rfb lfb lft
+        , face rft lft lbt rbt
+        , face rfb lfb lbb rbb
+        , face lft lfb lbb lbt
+        , face rbt rbb lbb lbt
+        ]
+            |> List.concat
+            |> WebGL.triangles
+
+
+face : Vec3 -> Vec3 -> Vec3 -> Vec3 -> List ( Attributes, Attributes, Attributes )
+face a b c d =
+    [ ( Attributes a, Attributes b, Attributes c )
+    , ( Attributes c, Attributes d, Attributes a )
     ]
 
 
@@ -104,20 +149,34 @@ cellEntity model id cell =
             else
                 identity
     in
-        WebGL.entityWith
-            [ WebGL.Settings.DepthTest.default
-            , WebGL.Settings.cullFace WebGL.Settings.front
+        (++)
+            [ WebGL.entityWith
+                [ WebGL.Settings.cullFace WebGL.Settings.front
+                , WebGL.Settings.DepthTest.default
+                ]
+                vertexShader
+                fragmentShader
+                cellMesh
+                { camera = model.camera
+                , perspective = perspective
+                , rotation = model.rotation
+                , transform = rotationFunc cell.transform
+                , color = highlightFunc (colorToVec3 cell.color)
+                }
+            , WebGL.entityWith
+                [ WebGL.Settings.DepthTest.default
+                , WebGL.Settings.polygonOffset 2 2
+                ]
+                vertexShader
+                fragmentShader
+                cubeMesh
+                { camera = model.camera
+                , perspective = perspective
+                , rotation = model.rotation
+                , transform = rotationFunc cell.transform
+                , color = vec3 0 0 0
+                }
             ]
-            vertexShader
-            fragmentShader
-            cellMesh
-            { camera = model.camera
-            , perspective = perspective
-            , rotation = model.rotation
-            , transform = rotationFunc cell.transform
-            , color = highlightFunc (colorToVec3 cell.color)
-            }
-            |> (::)
 
 
 vertexShader : Shader Attributes Uniforms {}

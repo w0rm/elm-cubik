@@ -354,14 +354,15 @@ selectCell mouse model =
 
 cellClickCoordinates : Vec3 -> Mat4 -> Maybe Vec3
 cellClickCoordinates destination transform =
-    cellAttributes
-        |> List.map
-            (\( p1, p2, p3 ) ->
-                ( Mat4.transform transform p1.position
-                , Mat4.transform transform p2.position
-                , Mat4.transform transform p3.position
-                )
-            )
+    [ ( Mat4.transform transform (vec3 -0.5 0.5 -0.5)
+      , Mat4.transform transform (vec3 -0.5 -0.5 -0.5)
+      , Mat4.transform transform (vec3 0.5 0.5 -0.5)
+      )
+    , ( Mat4.transform transform (vec3 0.5 0.5 -0.5)
+      , Mat4.transform transform (vec3 -0.5 -0.5 -0.5)
+      , Mat4.transform transform (vec3 0.5 -0.5 -0.5)
+      )
+    ]
         |> List.filterMap (rayTriangleIntersect origin destination)
         |> List.head
 
