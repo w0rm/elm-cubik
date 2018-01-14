@@ -243,19 +243,19 @@ colorToVec3 : Color -> Vec3
 colorToVec3 color =
     case color of
         Red ->
-            vec3 1 0 0
+            vec3 0.757 0.117 0.227
 
         Green ->
-            vec3 0 1 0
+            vec3 0.003 0.619 0.372
 
         White ->
             vec3 1 1 1
 
         Blue ->
-            vec3 0 0 1
+            vec3 0 0.317 0.729
 
         Orange ->
-            vec3 1 0.647 0
+            vec3 0.937 0.321 0.015
 
         Yellow ->
-            vec3 1 1 0
+            vec3 1 0.835 0

@@ -101,7 +101,7 @@ view : Model -> Html Msg
 view model =
     WebGL.toHtmlWith
         [ WebGL.depth 1
-        , WebGL.clearColor 0 0 0 1
+        , WebGL.clearColor 0.003 0.003 0.251 1
         ]
         [ width (round (toFloat model.window.width * model.devicePixelRatio))
         , height (round (toFloat model.window.height * model.devicePixelRatio))
@@ -145,7 +145,7 @@ cellEntity model id cell =
 
         highlightFunc =
             if isHighlighted then
-                Vec3.scale 0.4
+                Vec3.scale 0.6
             else
                 identity
     in
@@ -174,7 +174,7 @@ cellEntity model id cell =
                 , perspective = perspective
                 , rotation = model.rotation
                 , transform = rotationFunc cell.transform
-                , color = vec3 0 0 0
+                , color = vec3 0.003 0.003 0.251
                 }
             ]
 
