@@ -165,7 +165,7 @@ cellEntity model id cell =
                 }
             , WebGL.entityWith
                 [ WebGL.Settings.DepthTest.default
-                , WebGL.Settings.polygonOffset 2 2
+                , WebGL.Settings.polygonOffset 5 5
                 ]
                 vertexShader
                 fragmentShader

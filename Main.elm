@@ -9,7 +9,7 @@ import Mouse
 import Task
 import Dict exposing (Dict)
 import Types exposing (..)
-import View exposing (view, cellAttributes)
+import View exposing (view)
 import Utils exposing (..)
 import Decode exposing (origin)
 import Encode
