@@ -101,6 +101,8 @@ view : Model -> Html Msg
 view model =
     WebGL.toHtmlWith
         [ WebGL.depth 1
+        , WebGL.alpha True
+        , WebGL.antialias
         , WebGL.clearColor 0.003 0.003 0.251 1
         ]
         [ width (round (toFloat model.window.width * model.devicePixelRatio))
