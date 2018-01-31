@@ -4,9 +4,11 @@ import Json.Decode as Decode exposing (Value, Decoder)
 import Types exposing (..)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (Vec3)
+import Math.Vector4 as Vec4 exposing (Vec4)
 import Dict exposing (Dict)
 import Utils exposing (..)
 import Window
+import Quaternion
 
 
 origin : Vec3
@@ -30,7 +32,7 @@ model value =
                 |> Result.withDefault 2
 
         rotation =
-            Decode.decodeValue (Decode.field "rotation" mat4) value
+            Decode.decodeValue (Decode.field "rotation" vec4) value
                 |> Result.withDefault defaultRotation
 
         cubik =
@@ -104,6 +106,20 @@ vec3 =
         (Decode.list Decode.float)
 
 
+vec4 : Decoder Vec4
+vec4 =
+    Decode.andThen
+        (\l ->
+            case l of
+                [ x, y, z, w ] ->
+                    Decode.succeed (Vec4.vec4 x y z w)
+
+                _ ->
+                    Decode.fail "Wrong number of vector components"
+        )
+        (Decode.list Decode.float)
+
+
 mat4 : Decoder Mat4
 mat4 =
     Decode.andThen
@@ -120,11 +136,11 @@ mat4 =
         (Decode.list Decode.float)
 
 
-defaultRotation : Mat4
+defaultRotation : Vec4
 defaultRotation =
-    Mat4.identity
-        |> Mat4.mul (Mat4.makeRotate (pi / 4) Vec3.j)
-        |> Mat4.mul (Mat4.makeRotate (-pi / 4) Vec3.i)
+    Quaternion.identity
+        |> Quaternion.mul (Quaternion.fromAngleAxis (pi / 4) Vec3.j)
+        |> Quaternion.mul (Quaternion.fromAngleAxis (-pi / 4) Vec3.i)
 
 
 defaultCubik : Dict Int Cell

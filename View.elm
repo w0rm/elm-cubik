@@ -14,6 +14,7 @@ import Touch
 import SingleTouch
 import Mouse
 import Animation
+import Quaternion
 
 
 type alias Uniforms =
@@ -159,7 +160,7 @@ cellEntity model id cell =
                 cellMesh
                 { camera = model.camera
                 , perspective = perspective
-                , rotation = model.rotation
+                , rotation = Quaternion.toMat4 model.rotation
                 , transform = rotationFunc cell.transform
                 , color = highlightFunc (colorToVec3 cell.color)
                 }
@@ -172,7 +173,7 @@ cellEntity model id cell =
                 cubeMesh
                 { camera = model.camera
                 , perspective = perspective
-                , rotation = model.rotation
+                , rotation = Quaternion.toMat4 model.rotation
                 , transform = rotationFunc cell.transform
                 , color = vec3 0.003 0.003 0.251
                 }

@@ -4,6 +4,7 @@ import Json.Encode as Encode exposing (Value)
 import Types exposing (..)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (Vec3)
+import Math.Vector4 as Vec4 exposing (Vec4)
 import Dict
 
 
@@ -11,7 +12,7 @@ model : Model -> Value
 model { cubik, rotation } =
     Encode.object
         [ ( "cubik", Encode.list (List.map cell (Dict.values cubik)) )
-        , ( "rotation", mat4 rotation )
+        , ( "rotation", vec4 rotation )
         ]
 
 
@@ -42,6 +43,17 @@ vec3 vec =
             Vec3.toRecord vec
     in
         [ r.x, r.y, r.z ]
+            |> List.map Encode.float
+            |> Encode.list
+
+
+vec4 : Vec4 -> Value
+vec4 vec =
+    let
+        { x, y, z, w } =
+            Vec4.toRecord vec
+    in
+        [ x, y, z, w ]
             |> List.map Encode.float
             |> Encode.list
 
