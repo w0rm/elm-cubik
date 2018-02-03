@@ -14,6 +14,7 @@ import Utils exposing (..)
 import Decode exposing (origin)
 import Encode
 import Json.Encode exposing (Value)
+import Json.Decode as Decode
 import Random
 import AnimationFrame
 import Animation
@@ -43,12 +44,16 @@ main =
 
 init : Value -> ( Model, Cmd Msg )
 init value =
-    ( Decode.model value
-    , Cmd.batch
-        [ Task.perform Resize Window.size
-        , Random.generate Transform (randomTransformations 30)
-        ]
-    )
+    Decode.decodeValue Decode.model value
+        |> Result.map (\model -> ( model, Cmd.none ))
+        |> Result.mapError (Debug.log "err")
+        |> Result.withDefault
+            ( Decode.initial
+            , Cmd.batch
+                [ Task.perform Resize Window.size
+                , Random.generate Transform (randomTransformations 30)
+                ]
+            )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )

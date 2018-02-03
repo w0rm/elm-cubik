@@ -1,4 +1,4 @@
-module Decode exposing (model, origin)
+module Decode exposing (model, origin, initial)
 
 import Json.Decode as Decode exposing (Value, Decoder)
 import Types exposing (..)
@@ -16,38 +16,38 @@ origin =
     Vec3.vec3 0 0 -11
 
 
-model : Value -> Model
-model value =
-    let
-        width =
-            Decode.decodeValue (Decode.field "width" Decode.int) value
-                |> Result.withDefault 0
+model : Decoder Model
+model =
+    Decode.map5
+        (\width height devicePixelRatio rotation cubik ->
+            { state = Initial
+            , rotation = rotation
+            , perspective = Mat4.identity
+            , camera = Mat4.makeLookAt origin (Vec3.vec3 0 0 0) Vec3.j
+            , window = Window.Size width height
+            , devicePixelRatio = devicePixelRatio
+            , cubik = cubik
+            , time = 0
+            }
+        )
+        (Decode.field "width" Decode.int)
+        (Decode.field "height" Decode.int)
+        (Decode.field "devicePixelRatio" Decode.float)
+        (Decode.field "rotation" vec4)
+        (Decode.field "cubik" cells)
 
-        height =
-            Decode.decodeValue (Decode.field "height" Decode.int) value
-                |> Result.withDefault 0
 
-        devicePixelRatio =
-            Decode.decodeValue (Decode.field "devicePixelRatio" Decode.float) value
-                |> Result.withDefault 2
-
-        rotation =
-            Decode.decodeValue (Decode.field "rotation" vec4) value
-                |> Result.withDefault defaultRotation
-
-        cubik =
-            Decode.decodeValue (Decode.field "cubik" cells) value
-                |> Result.withDefault defaultCubik
-    in
-        { state = Initial
-        , rotation = rotation
-        , perspective = Mat4.identity
-        , camera = Mat4.makeLookAt origin (Vec3.vec3 0 0 0) Vec3.j
-        , window = Window.Size width height
-        , devicePixelRatio = devicePixelRatio
-        , cubik = cubik
-        , time = 0
-        }
+initial : Model
+initial =
+    { state = Initial
+    , rotation = defaultRotation
+    , perspective = Mat4.identity
+    , camera = Mat4.makeLookAt origin (Vec3.vec3 0 0 0) Vec3.j
+    , window = Window.Size 0 0
+    , devicePixelRatio = 2
+    , cubik = defaultCubik
+    , time = 0
+    }
 
 
 cells : Decoder (Dict Int Cell)

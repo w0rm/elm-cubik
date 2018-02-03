@@ -26,15 +26,20 @@
         // Load initial state from localStorage
         var initialState;
         try {
-            initialState = JSON.parse(localStorage.getItem('elm-flatris'));
+            initialState = JSON.parse(localStorage.getItem('elm-cubik')) || {};
         } catch (e) {
-
+            initialState = {};
         }
 
-        var app = Elm.Cubik.fullscreen(initialState);
+        var app = Elm.Cubik.fullscreen(Object.assign({
+            width: innerWidth,
+            height: innerHeight,
+            devicePixelRatio: devicePixelRatio
+        }, initialState || {}));
+
         app.ports.save.subscribe(function (state) {
             // Save game state to localStorage
-            localStorage.setItem('elm-flatris', state)
+            localStorage.setItem('elm-cubik', state)
         });
 
         // Prevent scrolling with arrow and space keys
