@@ -1,4 +1,4 @@
-port module Main exposing (main)
+port module Cubik exposing (main)
 
 import Html exposing (Html, div)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
@@ -14,12 +14,14 @@ import Utils exposing (..)
 import Decode exposing (origin)
 import Encode
 import Json.Encode exposing (Value)
+import Json.Decode as Decode
 import Random
 import AnimationFrame
 import Animation
+import Quaternion
 
 
-port save : Value -> Cmd msg
+port save : String -> Cmd msg
 
 
 main : Program Value Model Msg
@@ -42,12 +44,15 @@ main =
 
 init : Value -> ( Model, Cmd Msg )
 init value =
-    ( Decode.model value
-    , Cmd.batch
-        [ Task.perform Resize Window.size
-        , Random.generate Transform (randomTransformations 30)
-        ]
-    )
+    Decode.decodeValue Decode.model value
+        |> Result.map (\model -> ( model, Cmd.none ))
+        |> Result.withDefault
+            ( Decode.initial
+            , Cmd.batch
+                [ Task.perform Resize Window.size
+                , Random.generate Transform (randomTransformations 30)
+                ]
+            )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -199,8 +204,8 @@ rotate source dest model =
         | state = Rotating dest
         , rotation =
             model.rotation
-                |> Mat4.mul (Mat4.makeRotate (toFloat (dest.x - source.x) * 0.005) Vec3.j)
-                |> Mat4.mul (Mat4.makeRotate (toFloat (source.y - dest.y) * 0.005) Vec3.i)
+                |> Quaternion.mul (Quaternion.fromAngleAxis (toFloat (dest.x - source.x) * 0.005) Vec3.j)
+                |> Quaternion.mul (Quaternion.fromAngleAxis (toFloat (source.y - dest.y) * 0.005) Vec3.i)
     }
 
 
@@ -344,7 +349,7 @@ selectCell mouse model =
         |> Dict.filter
             (\_ ->
                 .transform
-                    >> Mat4.mul model.rotation
+                    >> Mat4.mul (Quaternion.toMat4 model.rotation)
                     >> cellClickCoordinates (getMousePosition model mouse)
                     >> (/=) Nothing
             )
@@ -370,22 +375,25 @@ cellClickCoordinates destination transform =
 rotationDirection : Cell -> Model -> Mouse.Position -> Mouse.Position -> ( Float, Float, Float )
 rotationDirection cell model source dest =
     let
+        rotation =
+            Quaternion.toMat4 model.rotation
+
         inverseRot =
-            Mat4.inverseOrthonormal model.rotation
+            Mat4.inverseOrthonormal rotation
 
         fromCoord =
             rayPlaneIntersect
                 origin
                 (getMousePosition model source)
-                (Mat4.transform model.rotation (cellPosition cell))
-                (Mat4.transform model.rotation cell.normal)
+                (Mat4.transform rotation (cellPosition cell))
+                (Mat4.transform rotation cell.normal)
 
         toCoord =
             rayPlaneIntersect
                 origin
                 (getMousePosition model dest)
-                (Mat4.transform model.rotation (cellPosition cell))
-                (Mat4.transform model.rotation cell.normal)
+                (Mat4.transform rotation (cellPosition cell))
+                (Mat4.transform rotation cell.normal)
     in
         Maybe.map2 Vec3.sub fromCoord toCoord
             |> Maybe.map (Mat4.transform inverseRot >> Vec3.toTuple)

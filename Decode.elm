@@ -1,12 +1,14 @@
-module Decode exposing (model, origin)
+module Decode exposing (model, origin, initial)
 
 import Json.Decode as Decode exposing (Value, Decoder)
 import Types exposing (..)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (Vec3)
+import Math.Vector4 as Vec4 exposing (Vec4)
 import Dict exposing (Dict)
 import Utils exposing (..)
 import Window
+import Quaternion
 
 
 origin : Vec3
@@ -14,38 +16,38 @@ origin =
     Vec3.vec3 0 0 -11
 
 
-model : Value -> Model
-model value =
-    let
-        width =
-            Decode.decodeValue (Decode.field "width" Decode.int) value
-                |> Result.withDefault 0
+model : Decoder Model
+model =
+    Decode.map5
+        (\width height devicePixelRatio rotation cubik ->
+            { state = Initial
+            , rotation = rotation
+            , perspective = Mat4.identity
+            , camera = Mat4.makeLookAt origin (Vec3.vec3 0 0 0) Vec3.j
+            , window = Window.Size width height
+            , devicePixelRatio = devicePixelRatio
+            , cubik = cubik
+            , time = 0
+            }
+        )
+        (Decode.field "width" Decode.int)
+        (Decode.field "height" Decode.int)
+        (Decode.field "devicePixelRatio" Decode.float)
+        (Decode.field "rotation" vec4)
+        (Decode.field "cubik" cells)
 
-        height =
-            Decode.decodeValue (Decode.field "height" Decode.int) value
-                |> Result.withDefault 0
 
-        devicePixelRatio =
-            Decode.decodeValue (Decode.field "devicePixelRatio" Decode.float) value
-                |> Result.withDefault 2
-
-        rotation =
-            Decode.decodeValue (Decode.field "rotation" mat4) value
-                |> Result.withDefault defaultRotation
-
-        cubik =
-            Decode.decodeValue (Decode.field "cubik" cells) value
-                |> Result.withDefault defaultCubik
-    in
-        { state = Initial
-        , rotation = rotation
-        , perspective = Mat4.identity
-        , camera = Mat4.makeLookAt origin (Vec3.vec3 0 0 0) Vec3.j
-        , window = Window.Size width height
-        , devicePixelRatio = devicePixelRatio
-        , cubik = cubik
-        , time = 0
-        }
+initial : Model
+initial =
+    { state = Initial
+    , rotation = defaultRotation
+    , perspective = Mat4.identity
+    , camera = Mat4.makeLookAt origin (Vec3.vec3 0 0 0) Vec3.j
+    , window = Window.Size 0 0
+    , devicePixelRatio = 2
+    , cubik = defaultCubik
+    , time = 0
+    }
 
 
 cells : Decoder (Dict Int Cell)
@@ -104,6 +106,20 @@ vec3 =
         (Decode.list Decode.float)
 
 
+vec4 : Decoder Vec4
+vec4 =
+    Decode.andThen
+        (\l ->
+            case l of
+                [ x, y, z, w ] ->
+                    Decode.succeed (Vec4.vec4 x y z w)
+
+                _ ->
+                    Decode.fail "Wrong number of vector components"
+        )
+        (Decode.list Decode.float)
+
+
 mat4 : Decoder Mat4
 mat4 =
     Decode.andThen
@@ -120,11 +136,11 @@ mat4 =
         (Decode.list Decode.float)
 
 
-defaultRotation : Mat4
+defaultRotation : Vec4
 defaultRotation =
-    Mat4.identity
-        |> Mat4.mul (Mat4.makeRotate (pi / 4) Vec3.j)
-        |> Mat4.mul (Mat4.makeRotate (-pi / 4) Vec3.i)
+    Quaternion.identity
+        |> Quaternion.mul (Quaternion.fromAngleAxis (pi / 4) Vec3.j)
+        |> Quaternion.mul (Quaternion.fromAngleAxis (-pi / 4) Vec3.i)
 
 
 defaultCubik : Dict Int Cell
