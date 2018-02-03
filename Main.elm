@@ -46,7 +46,6 @@ init : Value -> ( Model, Cmd Msg )
 init value =
     Decode.decodeValue Decode.model value
         |> Result.map (\model -> ( model, Cmd.none ))
-        |> Result.mapError (Debug.log "err")
         |> Result.withDefault
             ( Decode.initial
             , Cmd.batch
