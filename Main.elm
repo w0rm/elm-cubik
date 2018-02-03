@@ -1,4 +1,4 @@
-port module Main exposing (main)
+port module Cubik exposing (main)
 
 import Html exposing (Html, div)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
@@ -20,7 +20,7 @@ import Animation
 import Quaternion
 
 
-port save : Value -> Cmd msg
+port save : String -> Cmd msg
 
 
 main : Program Value Model Msg

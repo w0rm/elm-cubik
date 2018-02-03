@@ -103,6 +103,8 @@ view model =
     WebGL.toHtmlWith
         [ WebGL.depth 1
         , WebGL.clearColor 0.003 0.003 0.251 1
+        , WebGL.antialias
+        , WebGL.alpha True
         ]
         [ width (round (toFloat model.window.width * model.devicePixelRatio))
         , height (round (toFloat model.window.height * model.devicePixelRatio))

@@ -8,12 +8,13 @@ import Math.Vector4 as Vec4 exposing (Vec4)
 import Dict
 
 
-model : Model -> Value
+model : Model -> String
 model { cubik, rotation } =
     Encode.object
         [ ( "cubik", Encode.list (List.map cell (Dict.values cubik)) )
         , ( "rotation", vec4 rotation )
         ]
+    |> Encode.encode 2
 
 
 cell : Cell -> Value
