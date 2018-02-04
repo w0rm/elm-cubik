@@ -22,7 +22,12 @@ model =
         (\width height devicePixelRatio rotation cubik ->
             { state = Initial
             , rotation = rotation
-            , perspective = Mat4.identity
+            , perspective =
+                Mat4.makePerspective
+                    45
+                    (toFloat width / toFloat height)
+                    0.01
+                    100
             , camera = Mat4.makeLookAt origin (Vec3.vec3 0 0 0) Vec3.j
             , window = Window.Size width height
             , devicePixelRatio = devicePixelRatio
