@@ -33,7 +33,7 @@ type alias Cell =
 
 type alias Transformation =
     { axis : Rotation
-    , angle : Float -- todo make int of pi/2 ?
+    , angle : Float
     , coord : Int
     }
 
