@@ -5,7 +5,6 @@ import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector4 as Vec4 exposing (Vec4)
 import Window
 import Mouse
-import Dict exposing (Dict)
 import Time exposing (Time)
 import Animation exposing (Animation)
 
@@ -50,7 +49,7 @@ type alias Model =
     , camera : Mat4
     , window : Window.Size
     , devicePixelRatio : Float
-    , cubik : Dict Int Cell
+    , cubik : List Cell
     , time : Float
     }
 
@@ -58,8 +57,8 @@ type alias Model =
 type State
     = Initial
     | Rotating Mouse.Position -- rotating the cube
-    | TransformStart Int Mouse.Position -- transform started (accumulating minimum distance)
-    | Transforming Int Transformation Mouse.Position -- calculated which cells are rotating and axis
+    | TransformStart Cell Mouse.Position -- transform started (accumulating minimum distance)
+    | Transforming Cell Transformation Mouse.Position -- calculated which cells are rotating and axis
     | Animating Transformation (List Transformation) Animation
 
 

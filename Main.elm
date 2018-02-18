@@ -7,7 +7,6 @@ import Math.Matrix4 as Mat4 exposing (Mat4)
 import Window
 import Mouse
 import Task
-import Dict exposing (Dict)
 import Types exposing (..)
 import View exposing (view)
 import Utils exposing (..)
@@ -95,8 +94,8 @@ update msg model =
             case model.state of
                 Initial ->
                     case selectCell mouse model of
-                        Just ( id, cell ) ->
-                            ( { model | state = TransformStart id mouse }, Cmd.none )
+                        Just cell ->
+                            ( { model | state = TransformStart cell mouse }, Cmd.none )
 
                         Nothing ->
                             ( { model | state = Rotating mouse }, Cmd.none )
@@ -109,14 +108,14 @@ update msg model =
                 Rotating source ->
                     ( rotate source mouse model, Cmd.none )
 
-                TransformStart cellId position ->
+                TransformStart cell position ->
                     if (position.x - mouse.x) ^ 2 + (position.y - mouse.y) ^ 2 > 100 then
-                        ( startTransforming cellId position mouse model, Cmd.none )
+                        ( startTransforming cell position mouse model, Cmd.none )
                     else
                         ( model, Cmd.none )
 
-                Transforming cellId transformation source ->
-                    ( transforming cellId transformation source mouse model, Cmd.none )
+                Transforming cell transformation source ->
+                    ( transforming cell transformation source mouse model, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
@@ -186,10 +185,10 @@ update msg model =
                         ( { model | time = time }, Cmd.none )
 
 
-transform : Transformation -> Dict Int Cell -> Dict Int Cell
+transform : Transformation -> List Cell -> List Cell
 transform { coord, axis, angle } cubik =
-    Dict.map
-        (\_ cell ->
+    List.map
+        (\cell ->
             if cellRotationCoord axis cell == coord then
                 rotateCell axis angle cell
             else
@@ -209,17 +208,9 @@ rotate source dest model =
     }
 
 
-startTransforming : Int -> Mouse.Position -> Mouse.Position -> Model -> Model
-startTransforming cellId source dest model =
+startTransforming : Cell -> Mouse.Position -> Mouse.Position -> Model -> Model
+startTransforming cell source dest model =
     let
-        cell =
-            case Dict.get cellId model.cubik of
-                Just c ->
-                    c
-
-                Nothing ->
-                    Debug.crash "Shouldn't happen"
-
         ( x, y, z ) =
             rotationDirection cell model source dest
 
@@ -273,22 +264,14 @@ startTransforming cellId source dest model =
         coord =
             cellRotationCoord axis cell
     in
-        { model | state = Transforming cellId { coord = coord, axis = axis, angle = angle } source }
+        { model | state = Transforming cell { coord = coord, axis = axis, angle = angle } source }
 
 
-transforming : Int -> Transformation -> Mouse.Position -> Mouse.Position -> Model -> Model
-transforming cellId transformation source dest model =
+transforming : Cell -> Transformation -> Mouse.Position -> Mouse.Position -> Model -> Model
+transforming cell transformation source dest model =
     let
         axis =
             transformation.axis
-
-        cell =
-            case Dict.get cellId model.cubik of
-                Just c ->
-                    c
-
-                Nothing ->
-                    Debug.crash "Shouldn't happen"
 
         ( x, y, z ) =
             rotationDirection cell model source dest
@@ -340,20 +323,18 @@ transforming cellId transformation source dest model =
                 _ ->
                     Debug.crash "Shouldn't happen"
     in
-        { model | state = Transforming cellId { transformation | angle = angle } source }
+        { model | state = Transforming cell { transformation | angle = angle } source }
 
 
-selectCell : Mouse.Position -> Model -> Maybe ( Int, Cell )
+selectCell : Mouse.Position -> Model -> Maybe Cell
 selectCell mouse model =
     model.cubik
-        |> Dict.filter
-            (\_ ->
-                .transform
-                    >> Mat4.mul (Quaternion.toMat4 model.rotation)
-                    >> cellClickCoordinates (getMousePosition model mouse)
-                    >> (/=) Nothing
+        |> List.filter
+            (.transform
+                >> Mat4.mul (Quaternion.toMat4 model.rotation)
+                >> cellClickCoordinates (getMousePosition model mouse)
+                >> (/=) Nothing
             )
-        |> Dict.toList
         |> List.head
 
 
