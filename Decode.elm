@@ -5,7 +5,6 @@ import Types exposing (..)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (Vec3)
 import Math.Vector4 as Vec4 exposing (Vec4)
-import Dict exposing (Dict)
 import Utils exposing (..)
 import Window
 import Quaternion
@@ -39,7 +38,7 @@ model =
         (Decode.field "height" Decode.int)
         (Decode.field "devicePixelRatio" Decode.float)
         (Decode.field "rotation" vec4)
-        (Decode.field "cubik" cells)
+        (Decode.field "cubik" (Decode.list cell))
 
 
 initial : Model
@@ -53,11 +52,6 @@ initial =
     , cubik = defaultCubik
     , time = 0
     }
-
-
-cells : Decoder (Dict Int Cell)
-cells =
-    Decode.map (List.indexedMap (,) >> Dict.fromList) (Decode.list cell)
 
 
 cell : Decoder Cell
@@ -148,11 +142,9 @@ defaultRotation =
         |> Quaternion.mul (Quaternion.fromAngleAxis (-pi / 4) Vec3.i)
 
 
-defaultCubik : Dict Int Cell
+defaultCubik : List Cell
 defaultCubik =
     List.concatMap makeSide [ Red, Green, White, Blue, Orange, Yellow ]
-        |> List.indexedMap (,)
-        |> Dict.fromList
 
 
 makeSide : Color -> List Cell

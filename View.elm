@@ -9,7 +9,6 @@ import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Types exposing (..)
 import Utils exposing (..)
-import Dict
 import Touch
 import SingleTouch
 import Mouse
@@ -119,23 +118,23 @@ view model =
         , SingleTouch.onMove (touchToMouse >> Move)
         , SingleTouch.onEnd (touchToMouse >> Up)
         ]
-        (Dict.foldl (cellEntity model) [] model.cubik)
+        (List.foldl (cellEntity model) [] model.cubik)
 
 
-cellEntity : Model -> Int -> Cell -> List Entity -> List Entity
-cellEntity model id cell =
+cellEntity : Model -> Cell -> List Entity -> List Entity
+cellEntity model cell =
     let
         perspective =
             Mat4.makePerspective 45 (toFloat model.window.width / toFloat model.window.height) 0.01 100
 
         ( isHighlighted, rotationFunc ) =
             case model.state of
-                TransformStart cellId _ ->
-                    ( cellId == id, identity )
+                TransformStart activeCell _ ->
+                    ( cell == activeCell, identity )
 
-                Transforming cellId { coord, axis, angle } _ ->
+                Transforming activeCell { coord, axis, angle } _ ->
                     if cellRotationCoord axis cell == coord then
-                        ( cellId == id, Mat4.mul (makeRotation axis angle) )
+                        ( cell == activeCell, Mat4.mul (makeRotation axis angle) )
                     else
                         ( False, identity )
 
