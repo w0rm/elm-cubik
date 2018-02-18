@@ -59,7 +59,7 @@ type State
     | Rotating Mouse.Position -- rotating the cube
     | TransformStart Cell Mouse.Position -- transform started (accumulating minimum distance)
     | Transforming Cell Transformation Mouse.Position -- calculated which cells are rotating and axis
-    | Animating Transformation (List Transformation) Animation
+    | Animating Transformation (List Transformation) Animation -- animating between transformations
 
 
 type Msg

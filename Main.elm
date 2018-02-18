@@ -30,15 +30,61 @@ main =
         , update = update
         , view = view
         , subscriptions =
-            \_ ->
-                Sub.batch
-                    [ Window.resizes Resize
-                    , Mouse.moves Move
-                    , Mouse.downs Down
-                    , Mouse.ups Up
-                    , AnimationFrame.diffs Tick
-                    ]
+            \{ state } ->
+                [ ( always True, Window.resizes Resize )
+                , ( mayAnimate, AnimationFrame.diffs Tick )
+                , ( mayMouseDown, Mouse.downs Down )
+                , ( mayMove, Mouse.moves Move )
+                , ( mayMouseUp, Mouse.ups Up )
+                ]
+                    |> List.filter (Tuple.first >> (|>) state)
+                    |> List.map Tuple.second
+                    |> Sub.batch
         }
+
+
+mayMouseDown : State -> Bool
+mayMouseDown state =
+    state == Initial
+
+
+mayAnimate : State -> Bool
+mayAnimate state =
+    case state of
+        Animating _ _ _ ->
+            True
+
+        _ ->
+            False
+
+
+mayMove : State -> Bool
+mayMove state =
+    case state of
+        Rotating _ ->
+            True
+
+        TransformStart _ _ ->
+            True
+
+        Transforming _ _ _ ->
+            True
+
+        _ ->
+            False
+
+
+mayMouseUp : State -> Bool
+mayMouseUp state =
+    case state of
+        Transforming _ _ _ ->
+            True
+
+        Rotating _ ->
+            True
+
+        _ ->
+            False
 
 
 init : Value -> ( Model, Cmd Msg )
