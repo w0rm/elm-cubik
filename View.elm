@@ -29,7 +29,42 @@ perspective { window } =
 
 camera : Model -> Mat4
 camera model =
-    Mat4.makeLookAt Decode.origin Decode.destination Vec3.j
+    case model.state of
+        Initial ->
+            Mat4.makeLookAt Decode.startOrigin Decode.startDestination Vec3.j
+
+        Starting animation ->
+            Mat4.makeLookAt
+                (Utils.interpolateVec3 (Animation.animate model.time animation) Decode.startOrigin Decode.origin)
+                (Utils.interpolateVec3 (Animation.animate model.time animation) Decode.startDestination Decode.destination)
+                Vec3.j
+
+        Ending animation ->
+            Mat4.makeLookAt
+                (Utils.interpolateVec3 (Animation.animate model.time animation) Decode.origin Decode.startOrigin)
+                (Utils.interpolateVec3 (Animation.animate model.time animation) Decode.destination Decode.startDestination)
+                Vec3.j
+
+        _ ->
+            Mat4.makeLookAt Decode.origin Decode.destination Vec3.j
+
+
+rotation : Model -> Mat4
+rotation model =
+    case model.state of
+        Initial ->
+            Quaternion.toMat4 model.rotation
+
+        Starting animation ->
+            Quaternion.slerp (Animation.animate model.time animation) model.rotation Decode.defaultRotation
+                |> Quaternion.toMat4
+
+        Ending animation ->
+            Quaternion.slerp (Animation.animate model.time animation) model.rotation Decode.defaultRotation
+                |> Quaternion.toMat4
+
+        _ ->
+            Quaternion.toMat4 model.rotation
 
 
 type alias Uniforms =
@@ -192,7 +227,7 @@ cellEntity model cell =
                 cellMesh
                 { camera = camera model
                 , perspective = perspective model
-                , rotation = Quaternion.toMat4 model.rotation
+                , rotation = rotation model
                 , transform = rotationFunc cell.transform
                 , color = highlightFunc (colorToVec3 cell.color)
                 }
@@ -205,7 +240,7 @@ cellEntity model cell =
                 cubeMesh
                 { camera = camera model
                 , perspective = perspective model
-                , rotation = Quaternion.toMat4 model.rotation
+                , rotation = rotation model
                 , transform = rotationFunc cell.transform
                 , color = vec3 0.003 0.003 0.251
                 }

@@ -53,6 +53,15 @@ mayMouseDown state =
 mayAnimate : State -> Bool
 mayAnimate state =
     case state of
+        Initial ->
+            True
+
+        Starting _ ->
+            True
+
+        Ending _ ->
+            True
+
         Animating _ _ _ ->
             True
 
@@ -79,6 +88,9 @@ mayMove state =
 mayMouseUp : State -> Bool
 mayMouseUp state =
     case state of
+        Initial ->
+            True
+
         Transforming _ _ _ ->
             True
 
@@ -91,22 +103,19 @@ mayMouseUp state =
 
 init : Value -> ( Model, Cmd Msg )
 init value =
-    Decode.decodeValue Decode.model value
-        |> Result.map (\model -> ( model, Cmd.none ))
-        |> Result.withDefault
-            ( Decode.initial
-            , Cmd.batch
-                [ Task.perform Resize Window.size
-                , Texture.loadWith
-                    { defaultOptions
-                        | magnify = Texture.nearest
-                        , flipY = False
-                    }
-                    MogeeFont.fontSrc
-                    |> Task.attempt FontLoaded
-                , Random.generate Transform (randomTransformations 30)
-                ]
-            )
+    ( Decode.decodeValue Decode.model value
+        |> Result.withDefault Decode.initial
+    , Cmd.batch
+        [ Task.perform Resize Window.size
+        , Texture.loadWith
+            { defaultOptions
+                | magnify = Texture.nearest
+                , flipY = False
+            }
+            MogeeFont.fontSrc
+            |> Task.attempt FontLoaded
+        ]
+    )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -170,6 +179,9 @@ update msg model =
 
         Up mouse ->
             case model.state of
+                Initial ->
+                    ( { model | state = Starting (Animation.animation model.time |> Animation.duration 300) }, Cmd.none )
+
                 Transforming _ transformation _ ->
                     let
                         closestAngle =
@@ -200,6 +212,25 @@ update msg model =
                     model.time + diff
             in
                 case model.state of
+                    Initial ->
+                        let
+                            rotation =
+                                Quaternion.mul (Quaternion.fromAngleAxis (diff * 0.003) Vec3.j) model.rotation
+                        in
+                            ( { model | time = time, rotation = rotation }, Cmd.none )
+
+                    Starting animation ->
+                        if Animation.isDone time animation then
+                            ( { model | time = time, rotation = Decode.defaultRotation }, Random.generate Transform (randomTransformations 32) )
+                        else
+                            ( { model | time = time }, Cmd.none )
+
+                    Ending animation ->
+                        if Animation.isDone time animation then
+                            ( { model | time = time, rotation = Decode.defaultRotation, state = Initial }, Cmd.none )
+                        else
+                            ( { model | time = time }, Cmd.none )
+
                     Animating transformation transformations animation ->
                         if Animation.isDone time animation then
                             let
@@ -208,9 +239,14 @@ update msg model =
                             in
                                 case transformations of
                                     [] ->
-                                        ( { newModel | state = WaitForUserInput, time = time }
-                                        , save (Encode.model newModel)
-                                        )
+                                        if Utils.checkSolved newModel.cubik then
+                                            ( { newModel | state = Ending (Animation.animation model.time |> Animation.duration 300) }
+                                            , save ""
+                                            )
+                                        else
+                                            ( { newModel | state = WaitForUserInput, time = time }
+                                            , save (Encode.model newModel)
+                                            )
 
                                     t :: rest ->
                                         ( { newModel

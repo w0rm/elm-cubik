@@ -55,7 +55,10 @@ type alias Model =
 
 
 type State
-    = WaitForUserInput
+    = Initial
+    | Starting Animation
+    | Ending Animation
+    | WaitForUserInput
     | Rotating Mouse.Position -- rotating the cube
     | TransformStart Cell Mouse.Position -- transform started (accumulating minimum distance)
     | Transforming Cell Transformation Mouse.Position -- calculated which cells are rotating and axis

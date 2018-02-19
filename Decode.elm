@@ -1,4 +1,4 @@
-module Decode exposing (model, origin, destination, startOrigin, startDestination, initial)
+module Decode exposing (model, origin, destination, startOrigin, startDestination, initial, defaultRotation)
 
 import Json.Decode as Decode exposing (Value, Decoder)
 import Types exposing (..)
@@ -39,6 +39,7 @@ model =
                 , window = Window.Size width height
                 , devicePixelRatio = devicePixelRatio
                 , cubik = cubik
+                , state = WaitForUserInput
             }
         )
         (Decode.field "width" Decode.int)
@@ -50,7 +51,7 @@ model =
 
 initial : Model
 initial =
-    { state = WaitForUserInput
+    { state = Initial
     , rotation = defaultRotation
     , window = Window.Size 0 0
     , devicePixelRatio = 2
@@ -145,7 +146,7 @@ defaultRotation : Vec4
 defaultRotation =
     Quaternion.identity
         |> Quaternion.mul (Quaternion.fromAngleAxis (pi / 4) Vec3.j)
-        |> Quaternion.mul (Quaternion.fromAngleAxis (-pi / 4) Vec3.i)
+        |> Quaternion.mul (Quaternion.fromAngleAxis (-0.95531661779) Vec3.i)
 
 
 defaultCubik : List Cell
