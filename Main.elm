@@ -260,7 +260,7 @@ update msg model =
                                                     )
                                             , time = time
                                           }
-                                        , save (Encode.model newModel)
+                                        , Cmd.none
                                         )
                         else
                             ( { model | time = time }, Cmd.none )
