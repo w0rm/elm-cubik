@@ -3,6 +3,7 @@ module Types exposing (..)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector4 as Vec4 exposing (Vec4)
+import WebGL.Texture exposing (Texture, Error)
 import Window
 import Mouse
 import Time exposing (Time)
@@ -44,9 +45,8 @@ type alias Attributes =
 
 type alias Model =
     { state : State
+    , font : Maybe Texture
     , rotation : Vec4
-    , perspective : Mat4
-    , camera : Mat4
     , window : Window.Size
     , devicePixelRatio : Float
     , cubik : List Cell
@@ -56,6 +56,9 @@ type alias Model =
 
 type State
     = Initial
+    | Starting Animation
+    | Ending Animation
+    | WaitForUserInput
     | Rotating Mouse.Position -- rotating the cube
     | TransformStart Cell Mouse.Position -- transform started (accumulating minimum distance)
     | Transforming Cell Transformation Mouse.Position -- calculated which cells are rotating and axis
@@ -69,3 +72,4 @@ type Msg
     | Up Mouse.Position
     | Down Mouse.Position
     | Transform (List Transformation)
+    | FontLoaded (Result Error Texture)

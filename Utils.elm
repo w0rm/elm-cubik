@@ -8,9 +8,9 @@ import Random exposing (Generator)
 import Dict exposing (Dict)
 
 
-checkSolved : Dict Int Cell -> Bool
+checkSolved : List Cell -> Bool
 checkSolved =
-    Dict.values >> checkSolvedHelp Dict.empty
+    checkSolvedHelp Dict.empty
 
 
 checkSolvedHelp : Dict Int ( Int, Int, Int ) -> List Cell -> Bool
@@ -259,3 +259,8 @@ colorToVec3 color =
 
         Yellow ->
             vec3 1 0.835 0
+
+
+interpolateVec3 : Float -> Vec3 -> Vec3 -> Vec3
+interpolateVec3 progress v1 v2 =
+    Vec3.add v1 (Vec3.scale progress (Vec3.sub v2 v1))

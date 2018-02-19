@@ -1,4 +1,4 @@
-module View exposing (view, cellAttributes)
+module View exposing (view, perspective, camera, cellAttributes)
 
 import Html.Attributes exposing (width, height, style)
 import Html exposing (Html, div)
@@ -14,6 +14,57 @@ import SingleTouch
 import Mouse
 import Animation
 import Quaternion
+import Text
+import Decode
+
+
+perspective : Model -> Mat4
+perspective { window } =
+    Mat4.makePerspective
+        45
+        (toFloat window.width / toFloat window.height)
+        0.01
+        100
+
+
+camera : Model -> Mat4
+camera model =
+    case model.state of
+        Initial ->
+            Mat4.makeLookAt Decode.startOrigin Decode.startDestination Vec3.j
+
+        Starting animation ->
+            Mat4.makeLookAt
+                (Utils.interpolateVec3 (Animation.animate model.time animation) Decode.startOrigin Decode.origin)
+                (Utils.interpolateVec3 (Animation.animate model.time animation) Decode.startDestination Decode.destination)
+                Vec3.j
+
+        Ending animation ->
+            Mat4.makeLookAt
+                (Utils.interpolateVec3 (Animation.animate model.time animation) Decode.origin Decode.startOrigin)
+                (Utils.interpolateVec3 (Animation.animate model.time animation) Decode.destination Decode.startDestination)
+                Vec3.j
+
+        _ ->
+            Mat4.makeLookAt Decode.origin Decode.destination Vec3.j
+
+
+rotation : Model -> Mat4
+rotation model =
+    case model.state of
+        Initial ->
+            Quaternion.toMat4 model.rotation
+
+        Starting animation ->
+            Quaternion.slerp (Animation.animate model.time animation) model.rotation Decode.defaultRotation
+                |> Quaternion.toMat4
+
+        Ending animation ->
+            Quaternion.slerp (Animation.animate model.time animation) model.rotation Decode.defaultRotation
+                |> Quaternion.toMat4
+
+        _ ->
+            Quaternion.toMat4 model.rotation
 
 
 type alias Uniforms =
@@ -104,8 +155,6 @@ view model =
         , WebGL.alpha True
         , WebGL.antialias
         , WebGL.clearColor 0.003 0.003 0.251 1
-        , WebGL.antialias
-        , WebGL.alpha True
         ]
         [ width (round (toFloat model.window.width * model.devicePixelRatio))
         , height (round (toFloat model.window.height * model.devicePixelRatio))
@@ -118,15 +167,30 @@ view model =
         , SingleTouch.onMove (touchToMouse >> Move)
         , SingleTouch.onEnd (touchToMouse >> Up)
         ]
-        (List.foldl (cellEntity model) [] model.cubik)
+        ((case model.font of
+            Just texture ->
+                [ Text.render
+                    texture
+                    (perspective model)
+                    (camera model)
+                    (Mat4.makeScale3 0.08 0.08 0.08
+                        |> Mat4.mul (Mat4.makeTranslate3 1 0 0)
+                        |> Mat4.mul (Mat4.makeRotate (pi / 15) Vec3.j)
+                        |> Mat4.mul (Mat4.makeTranslate3 0 -0.6 -11)
+                    )
+                    Text.clickToStart
+                ]
+
+            Nothing ->
+                []
+         )
+            ++ List.foldl (cellEntity model) [] model.cubik
+        )
 
 
 cellEntity : Model -> Cell -> List Entity -> List Entity
 cellEntity model cell =
     let
-        perspective =
-            Mat4.makePerspective 45 (toFloat model.window.width / toFloat model.window.height) 0.01 100
-
         ( isHighlighted, rotationFunc ) =
             case model.state of
                 TransformStart activeCell _ ->
@@ -161,9 +225,9 @@ cellEntity model cell =
                 vertexShader
                 fragmentShader
                 cellMesh
-                { camera = model.camera
-                , perspective = perspective
-                , rotation = Quaternion.toMat4 model.rotation
+                { camera = camera model
+                , perspective = perspective model
+                , rotation = rotation model
                 , transform = rotationFunc cell.transform
                 , color = highlightFunc (colorToVec3 cell.color)
                 }
@@ -174,9 +238,9 @@ cellEntity model cell =
                 vertexShader
                 fragmentShader
                 cubeMesh
-                { camera = model.camera
-                , perspective = perspective
-                , rotation = Quaternion.toMat4 model.rotation
+                { camera = camera model
+                , perspective = perspective model
+                , rotation = rotation model
                 , transform = rotationFunc cell.transform
                 , color = vec3 0.003 0.003 0.251
                 }

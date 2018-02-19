@@ -4,6 +4,7 @@ import Html exposing (Html, div)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Vector4 as Vec4 exposing (Vec4, vec4)
 import Math.Matrix4 as Mat4 exposing (Mat4)
+import WebGL.Texture as Texture exposing (defaultOptions)
 import Window
 import Mouse
 import Task
@@ -18,6 +19,7 @@ import Random
 import AnimationFrame
 import Animation
 import Quaternion
+import MogeeFont
 
 
 port save : String -> Cmd msg
@@ -45,12 +47,21 @@ main =
 
 mayMouseDown : State -> Bool
 mayMouseDown state =
-    state == Initial
+    state == WaitForUserInput
 
 
 mayAnimate : State -> Bool
 mayAnimate state =
     case state of
+        Initial ->
+            True
+
+        Starting _ ->
+            True
+
+        Ending _ ->
+            True
+
         Animating _ _ _ ->
             True
 
@@ -77,6 +88,9 @@ mayMove state =
 mayMouseUp : State -> Bool
 mayMouseUp state =
     case state of
+        Initial ->
+            True
+
         Transforming _ _ _ ->
             True
 
@@ -89,20 +103,27 @@ mayMouseUp state =
 
 init : Value -> ( Model, Cmd Msg )
 init value =
-    Decode.decodeValue Decode.model value
-        |> Result.map (\model -> ( model, Cmd.none ))
-        |> Result.withDefault
-            ( Decode.initial
-            , Cmd.batch
-                [ Task.perform Resize Window.size
-                , Random.generate Transform (randomTransformations 30)
-                ]
-            )
+    ( Decode.decodeValue Decode.model value
+        |> Result.withDefault Decode.initial
+    , Cmd.batch
+        [ Task.perform Resize Window.size
+        , Texture.loadWith
+            { defaultOptions
+                | magnify = Texture.nearest
+                , flipY = False
+            }
+            MogeeFont.fontSrc
+            |> Task.attempt FontLoaded
+        ]
+    )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        FontLoaded textureResult ->
+            ( { model | font = Result.toMaybe textureResult }, Cmd.none )
+
         Transform transformations ->
             case transformations of
                 [] ->
@@ -123,22 +144,12 @@ update msg model =
                     )
 
         Resize window ->
-            ( { model
-                | window = window
-                , perspective =
-                    Mat4.makePerspective
-                        45
-                        (toFloat window.width / toFloat window.height)
-                        0.01
-                        100
-              }
-            , Cmd.none
-            )
+            ( { model | window = window }, Cmd.none )
 
         -- Interactions
         Down mouse ->
             case model.state of
-                Initial ->
+                WaitForUserInput ->
                     case selectCell mouse model of
                         Just cell ->
                             ( { model | state = TransformStart cell mouse }, Cmd.none )
@@ -168,6 +179,9 @@ update msg model =
 
         Up mouse ->
             case model.state of
+                Initial ->
+                    ( { model | state = Starting (Animation.animation model.time |> Animation.duration 300) }, Cmd.none )
+
                 Transforming _ transformation _ ->
                     let
                         closestAngle =
@@ -190,7 +204,7 @@ update msg model =
                         )
 
                 _ ->
-                    ( { model | state = Initial }, save (Encode.model model) )
+                    ( { model | state = WaitForUserInput }, save (Encode.model model) )
 
         Tick diff ->
             let
@@ -198,6 +212,25 @@ update msg model =
                     model.time + diff
             in
                 case model.state of
+                    Initial ->
+                        let
+                            rotation =
+                                Quaternion.mul (Quaternion.fromAngleAxis (diff * 0.003) Vec3.j) model.rotation
+                        in
+                            ( { model | time = time, rotation = rotation }, Cmd.none )
+
+                    Starting animation ->
+                        if Animation.isDone time animation then
+                            ( { model | time = time, rotation = Decode.defaultRotation }, Random.generate Transform (randomTransformations 32) )
+                        else
+                            ( { model | time = time }, Cmd.none )
+
+                    Ending animation ->
+                        if Animation.isDone time animation then
+                            ( { model | time = time, rotation = Decode.defaultRotation, state = Initial }, Cmd.none )
+                        else
+                            ( { model | time = time }, Cmd.none )
+
                     Animating transformation transformations animation ->
                         if Animation.isDone time animation then
                             let
@@ -206,9 +239,14 @@ update msg model =
                             in
                                 case transformations of
                                     [] ->
-                                        ( { newModel | state = Initial, time = time }
-                                        , save (Encode.model newModel)
-                                        )
+                                        if Utils.checkSolved newModel.cubik then
+                                            ( { newModel | state = Ending (Animation.animation model.time |> Animation.duration 300) }
+                                            , save ""
+                                            )
+                                        else
+                                            ( { newModel | state = WaitForUserInput, time = time }
+                                            , save (Encode.model newModel)
+                                            )
 
                                     t :: rest ->
                                         ( { newModel
@@ -222,7 +260,7 @@ update msg model =
                                                     )
                                             , time = time
                                           }
-                                        , save (Encode.model newModel)
+                                        , Cmd.none
                                         )
                         else
                             ( { model | time = time }, Cmd.none )
@@ -428,17 +466,17 @@ rotationDirection cell model source dest =
 
 
 getMousePosition : Model -> Mouse.Position -> Vec3
-getMousePosition { window, perspective, camera } mouse =
+getMousePosition model mouse =
     let
         homogeneousClipCoordinates =
             Vec4.vec4
-                (toFloat mouse.x * 2 / toFloat window.width - 1)
-                (1 - toFloat mouse.y * 2 / toFloat window.height)
+                (toFloat mouse.x * 2 / toFloat model.window.width - 1)
+                (1 - toFloat mouse.y * 2 / toFloat model.window.height)
                 -1
                 1
 
         invertedProjectionMatrix =
-            Maybe.withDefault Mat4.identity (Mat4.inverse perspective)
+            Maybe.withDefault Mat4.identity (Mat4.inverse (View.perspective model))
 
         vec4CameraCoordinates =
             transform4 invertedProjectionMatrix homogeneousClipCoordinates
@@ -451,7 +489,7 @@ getMousePosition { window, perspective, camera } mouse =
                 0
 
         vec4WorldCoordinates =
-            transform4 (Mat4.inverseOrthonormal camera) direction
+            transform4 (Mat4.inverseOrthonormal (View.camera model)) direction
 
         vec3WorldCoordinates =
             vec3
