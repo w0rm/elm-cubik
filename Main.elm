@@ -4,6 +4,7 @@ import Html exposing (Html, div)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Vector4 as Vec4 exposing (Vec4, vec4)
 import Math.Matrix4 as Mat4 exposing (Mat4)
+import WebGL.Texture as Texture exposing (defaultOptions)
 import Window
 import Mouse
 import Task
@@ -18,6 +19,7 @@ import Random
 import AnimationFrame
 import Animation
 import Quaternion
+import MogeeFont
 
 
 port save : String -> Cmd msg
@@ -45,7 +47,7 @@ main =
 
 mayMouseDown : State -> Bool
 mayMouseDown state =
-    state == Initial
+    state == WaitForUserInput
 
 
 mayAnimate : State -> Bool
@@ -95,6 +97,13 @@ init value =
             ( Decode.initial
             , Cmd.batch
                 [ Task.perform Resize Window.size
+                , Texture.loadWith
+                    { defaultOptions
+                        | magnify = Texture.nearest
+                        , flipY = False
+                    }
+                    MogeeFont.fontSrc
+                    |> Task.attempt FontLoaded
                 , Random.generate Transform (randomTransformations 30)
                 ]
             )
@@ -103,6 +112,9 @@ init value =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        FontLoaded textureResult ->
+            ( { model | font = Result.toMaybe textureResult }, Cmd.none )
+
         Transform transformations ->
             case transformations of
                 [] ->
@@ -123,22 +135,12 @@ update msg model =
                     )
 
         Resize window ->
-            ( { model
-                | window = window
-                , perspective =
-                    Mat4.makePerspective
-                        45
-                        (toFloat window.width / toFloat window.height)
-                        0.01
-                        100
-              }
-            , Cmd.none
-            )
+            ( { model | window = window }, Cmd.none )
 
         -- Interactions
         Down mouse ->
             case model.state of
-                Initial ->
+                WaitForUserInput ->
                     case selectCell mouse model of
                         Just cell ->
                             ( { model | state = TransformStart cell mouse }, Cmd.none )
@@ -190,7 +192,7 @@ update msg model =
                         )
 
                 _ ->
-                    ( { model | state = Initial }, save (Encode.model model) )
+                    ( { model | state = WaitForUserInput }, save (Encode.model model) )
 
         Tick diff ->
             let
@@ -206,7 +208,7 @@ update msg model =
                             in
                                 case transformations of
                                     [] ->
-                                        ( { newModel | state = Initial, time = time }
+                                        ( { newModel | state = WaitForUserInput, time = time }
                                         , save (Encode.model newModel)
                                         )
 
@@ -428,17 +430,17 @@ rotationDirection cell model source dest =
 
 
 getMousePosition : Model -> Mouse.Position -> Vec3
-getMousePosition { window, perspective, camera } mouse =
+getMousePosition model mouse =
     let
         homogeneousClipCoordinates =
             Vec4.vec4
-                (toFloat mouse.x * 2 / toFloat window.width - 1)
-                (1 - toFloat mouse.y * 2 / toFloat window.height)
+                (toFloat mouse.x * 2 / toFloat model.window.width - 1)
+                (1 - toFloat mouse.y * 2 / toFloat model.window.height)
                 -1
                 1
 
         invertedProjectionMatrix =
-            Maybe.withDefault Mat4.identity (Mat4.inverse perspective)
+            Maybe.withDefault Mat4.identity (Mat4.inverse (View.perspective model))
 
         vec4CameraCoordinates =
             transform4 invertedProjectionMatrix homogeneousClipCoordinates
@@ -451,7 +453,7 @@ getMousePosition { window, perspective, camera } mouse =
                 0
 
         vec4WorldCoordinates =
-            transform4 (Mat4.inverseOrthonormal camera) direction
+            transform4 (Mat4.inverseOrthonormal (View.camera model)) direction
 
         vec3WorldCoordinates =
             vec3

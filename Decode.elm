@@ -1,4 +1,4 @@
-module Decode exposing (model, origin, initial)
+module Decode exposing (model, origin, destination, startOrigin, startDestination, initial)
 
 import Json.Decode as Decode exposing (Value, Decoder)
 import Types exposing (..)
@@ -10,28 +10,35 @@ import Window
 import Quaternion
 
 
+startOrigin : Vec3
+startOrigin =
+    Vec3.vec3 0 1 -18
+
+
+startDestination : Vec3
+startDestination =
+    Vec3.vec3 0 -2 0
+
+
 origin : Vec3
 origin =
     Vec3.vec3 0 0 -11
+
+
+destination : Vec3
+destination =
+    Vec3.vec3 0 0 0
 
 
 model : Decoder Model
 model =
     Decode.map5
         (\width height devicePixelRatio rotation cubik ->
-            { state = Initial
-            , rotation = rotation
-            , perspective =
-                Mat4.makePerspective
-                    45
-                    (toFloat width / toFloat height)
-                    0.01
-                    100
-            , camera = Mat4.makeLookAt origin (Vec3.vec3 0 0 0) Vec3.j
-            , window = Window.Size width height
-            , devicePixelRatio = devicePixelRatio
-            , cubik = cubik
-            , time = 0
+            { initial
+                | rotation = rotation
+                , window = Window.Size width height
+                , devicePixelRatio = devicePixelRatio
+                , cubik = cubik
             }
         )
         (Decode.field "width" Decode.int)
@@ -43,14 +50,13 @@ model =
 
 initial : Model
 initial =
-    { state = Initial
+    { state = WaitForUserInput
     , rotation = defaultRotation
-    , perspective = Mat4.identity
-    , camera = Mat4.makeLookAt origin (Vec3.vec3 0 0 0) Vec3.j
     , window = Window.Size 0 0
     , devicePixelRatio = 2
     , cubik = defaultCubik
     , time = 0
+    , font = Nothing
     }
 
 

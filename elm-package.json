@@ -15,6 +15,7 @@
         "elm-lang/html": "2.0.0 <= v < 3.0.0",
         "elm-lang/mouse": "1.0.1 <= v < 2.0.0",
         "elm-lang/window": "1.0.1 <= v < 2.0.0",
+        "kuzminadya/mogeefont": "1.0.3 <= v < 2.0.0",
         "mgold/elm-animation": "1.0.5 <= v < 2.0.0",
         "mpizenberg/elm-touch-events": "3.0.1 <= v < 4.0.0"
     },
