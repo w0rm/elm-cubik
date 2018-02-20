@@ -1,28 +1,20 @@
-port module Cubik exposing (main)
+module Cubik exposing (main)
 
 import Html exposing (Html, div)
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Math.Vector4 as Vec4 exposing (Vec4, vec4)
-import Math.Matrix4 as Mat4 exposing (Mat4)
 import WebGL.Texture as Texture exposing (defaultOptions)
 import Window
 import Mouse
 import Task
 import Types exposing (..)
 import View exposing (view)
-import Utils exposing (..)
-import Decode exposing (origin)
-import Encode
+import Decode
 import Json.Encode exposing (Value)
 import Json.Decode as Decode
-import Random
 import AnimationFrame
-import Animation
-import Quaternion
 import MogeeFont
-
-
-port save : String -> Cmd msg
+import InteractionHandler exposing (check, handle, InteractionHandler)
+import Time exposing (Time)
+import Logic
 
 
 main : Program Value Model Msg
@@ -30,80 +22,15 @@ main =
     Html.programWithFlags
         { init = init
         , update = update
+        , subscriptions = subscriptions
         , view = view
-        , subscriptions =
-            \{ state } ->
-                [ ( always True, Window.resizes Resize )
-                , ( mayAnimate, AnimationFrame.diffs Tick )
-                , ( mayMouseDown, Mouse.downs Down )
-                , ( mayMove, Mouse.moves Move )
-                , ( mayMouseUp, Mouse.ups Up )
-                ]
-                    |> List.filter (Tuple.first >> (|>) state)
-                    |> List.map Tuple.second
-                    |> Sub.batch
         }
-
-
-mayMouseDown : State -> Bool
-mayMouseDown state =
-    state == WaitForUserInput
-
-
-mayAnimate : State -> Bool
-mayAnimate state =
-    case state of
-        Initial ->
-            True
-
-        Starting _ ->
-            True
-
-        Ending _ ->
-            True
-
-        Animating _ _ _ ->
-            True
-
-        _ ->
-            False
-
-
-mayMove : State -> Bool
-mayMove state =
-    case state of
-        Rotating _ ->
-            True
-
-        TransformStart _ _ ->
-            True
-
-        Transforming _ _ _ ->
-            True
-
-        _ ->
-            False
-
-
-mayMouseUp : State -> Bool
-mayMouseUp state =
-    case state of
-        Initial ->
-            True
-
-        Transforming _ _ _ ->
-            True
-
-        Rotating _ ->
-            True
-
-        _ ->
-            False
 
 
 init : Value -> ( Model, Cmd Msg )
 init value =
-    ( Decode.decodeValue Decode.model value
+    ( value
+        |> Decode.decodeValue Decode.model
         |> Result.withDefault Decode.initial
     , Cmd.batch
         [ Task.perform Resize Window.size
@@ -122,379 +49,102 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         FontLoaded textureResult ->
-            ( { model | font = Result.toMaybe textureResult }, Cmd.none )
+            ( { model | font = Result.toMaybe textureResult }
+            , Cmd.none
+            )
 
         Transform transformations ->
-            case transformations of
-                [] ->
-                    ( model, Cmd.none )
-
-                t :: rest ->
-                    ( { model
-                        | state =
-                            Animating t
-                                rest
-                                (Animation.animation model.time
-                                    |> Animation.from 0
-                                    |> Animation.to t.angle
-                                    |> Animation.duration 100
-                                )
-                      }
-                    , Cmd.none
-                    )
+            Logic.initialTransformationAnimationStart
+                transformations
+                model
 
         Resize window ->
-            ( { model | window = window }, Cmd.none )
+            ( { model | window = window }
+            , Cmd.none
+            )
 
-        -- Interactions
         Down mouse ->
-            case model.state of
-                WaitForUserInput ->
-                    case selectCell mouse model of
-                        Just cell ->
-                            ( { model | state = TransformStart cell mouse }, Cmd.none )
-
-                        Nothing ->
-                            ( { model | state = Rotating mouse }, Cmd.none )
-
-                _ ->
-                    ( model, Cmd.none )
+            handle mouseDown mouse model
 
         Move mouse ->
-            case model.state of
-                Rotating source ->
-                    ( rotate source mouse model, Cmd.none )
-
-                TransformStart cell position ->
-                    if (position.x - mouse.x) ^ 2 + (position.y - mouse.y) ^ 2 > 100 then
-                        ( startTransforming cell position mouse model, Cmd.none )
-                    else
-                        ( model, Cmd.none )
-
-                Transforming cell transformation source ->
-                    ( transforming cell transformation source mouse model, Cmd.none )
-
-                _ ->
-                    ( model, Cmd.none )
+            handle mouseMove mouse model
 
         Up mouse ->
-            case model.state of
-                Initial ->
-                    ( { model | state = Starting (Animation.animation model.time |> Animation.duration 300) }, Cmd.none )
-
-                Transforming _ transformation _ ->
-                    let
-                        closestAngle =
-                            toFloat (round (transformation.angle / (pi / 2))) * pi / 2
-
-                        animation =
-                            Animation.animation model.time
-                                |> Animation.from transformation.angle
-                                |> Animation.to closestAngle
-                                |> Animation.duration 100
-                    in
-                        ( { model
-                            | state =
-                                Animating
-                                    { transformation | angle = closestAngle }
-                                    []
-                                    animation
-                          }
-                        , Cmd.none
-                        )
-
-                _ ->
-                    ( { model | state = WaitForUserInput }, save (Encode.model model) )
+            handle mouseUp mouse model
 
         Tick diff ->
-            let
-                time =
-                    model.time + diff
-            in
-                case model.state of
-                    Initial ->
-                        let
-                            rotation =
-                                Quaternion.mul (Quaternion.fromAngleAxis (diff * 0.003) Vec3.j) model.rotation
-                        in
-                            ( { model | time = time, rotation = rotation }, Cmd.none )
-
-                    Starting animation ->
-                        if Animation.isDone time animation then
-                            ( { model | time = time, rotation = Decode.defaultRotation }, Random.generate Transform (randomTransformations 32) )
-                        else
-                            ( { model | time = time }, Cmd.none )
-
-                    Ending animation ->
-                        if Animation.isDone time animation then
-                            ( { model | time = time, rotation = Decode.defaultRotation, state = Initial }, Cmd.none )
-                        else
-                            ( { model | time = time }, Cmd.none )
-
-                    Animating transformation transformations animation ->
-                        if Animation.isDone time animation then
-                            let
-                                newModel =
-                                    { model | cubik = transform transformation model.cubik }
-                            in
-                                case transformations of
-                                    [] ->
-                                        if Utils.checkSolved newModel.cubik then
-                                            ( { newModel | state = Ending (Animation.animation model.time |> Animation.duration 300) }
-                                            , save ""
-                                            )
-                                        else
-                                            ( { newModel | state = WaitForUserInput, time = time }
-                                            , save (Encode.model newModel)
-                                            )
-
-                                    t :: rest ->
-                                        ( { newModel
-                                            | state =
-                                                Animating
-                                                    t
-                                                    rest
-                                                    (Animation.animation time
-                                                        |> Animation.to t.angle
-                                                        |> Animation.duration 200
-                                                    )
-                                            , time = time
-                                          }
-                                        , Cmd.none
-                                        )
-                        else
-                            ( { model | time = time }, Cmd.none )
-
-                    _ ->
-                        ( { model | time = time }, Cmd.none )
+            handle animate diff { model | time = model.time + diff }
 
 
-transform : Transformation -> List Cell -> List Cell
-transform { coord, axis, angle } cubik =
-    List.map
-        (\cell ->
-            if cellRotationCoord axis cell == coord then
-                rotateCell axis angle cell
-            else
-                cell
-        )
-        cubik
-
-
-rotate : Mouse.Position -> Mouse.Position -> Model -> Model
-rotate source dest model =
-    { model
-        | state = Rotating dest
-        , rotation =
-            model.rotation
-                |> Quaternion.mul (Quaternion.fromAngleAxis (toFloat (dest.x - source.x) * 0.005) Vec3.j)
-                |> Quaternion.mul (Quaternion.fromAngleAxis (toFloat (source.y - dest.y) * 0.005) Vec3.i)
-    }
-
-
-startTransforming : Cell -> Mouse.Position -> Mouse.Position -> Model -> Model
-startTransforming cell source dest model =
-    let
-        ( x, y, z ) =
-            rotationDirection cell model source dest
-
-        ( axis, angle ) =
-            case round3 cell.normal of
-                ( _, _, -1 ) ->
-                    -- front
-                    if abs x < abs y then
-                        ( XAxis, -y )
-                    else
-                        ( YAxis, x )
-
-                ( _, _, 1 ) ->
-                    -- back
-                    if abs x < abs y then
-                        ( XAxis, y )
-                    else
-                        ( YAxis, -x )
-
-                ( -1, _, _ ) ->
-                    -- right
-                    if abs z < abs y then
-                        ( ZAxis, y )
-                    else
-                        ( YAxis, -z )
-
-                ( 1, _, _ ) ->
-                    -- left
-                    if abs z < abs y then
-                        ( ZAxis, -y )
-                    else
-                        ( YAxis, z )
-
-                ( _, 1, _ ) ->
-                    -- top
-                    if abs x < abs z then
-                        ( XAxis, -z )
-                    else
-                        ( ZAxis, x )
-
-                ( _, -1, _ ) ->
-                    -- bottom
-                    if abs x < abs z then
-                        ( XAxis, z )
-                    else
-                        ( ZAxis, -x )
-
-                _ ->
-                    Debug.crash "Shouldn't happen"
-
-        coord =
-            cellRotationCoord axis cell
-    in
-        { model | state = Transforming cell { coord = coord, axis = axis, angle = angle } source }
-
-
-transforming : Cell -> Transformation -> Mouse.Position -> Mouse.Position -> Model -> Model
-transforming cell transformation source dest model =
-    let
-        axis =
-            transformation.axis
-
-        ( x, y, z ) =
-            rotationDirection cell model source dest
-
-        angle =
-            case round3 cell.normal of
-                ( _, _, -1 ) ->
-                    -- front
-                    if axis == XAxis then
-                        -y
-                    else
-                        x
-
-                ( _, _, 1 ) ->
-                    -- back
-                    if axis == XAxis then
-                        y
-                    else
-                        -x
-
-                ( -1, _, _ ) ->
-                    -- right
-                    if axis == ZAxis then
-                        y
-                    else
-                        -z
-
-                ( 1, _, _ ) ->
-                    -- left
-                    if axis == ZAxis then
-                        -y
-                    else
-                        z
-
-                ( _, 1, _ ) ->
-                    -- top
-                    if axis == XAxis then
-                        -z
-                    else
-                        x
-
-                ( _, -1, _ ) ->
-                    -- bottom
-                    if axis == XAxis then
-                        z
-                    else
-                        -x
-
-                _ ->
-                    Debug.crash "Shouldn't happen"
-    in
-        { model | state = Transforming cell { transformation | angle = angle } source }
-
-
-selectCell : Mouse.Position -> Model -> Maybe Cell
-selectCell mouse model =
-    model.cubik
-        |> List.filter
-            (.transform
-                >> Mat4.mul (Quaternion.toMat4 model.rotation)
-                >> cellClickCoordinates (getMousePosition model mouse)
-                >> (/=) Nothing
-            )
-        |> List.head
-
-
-cellClickCoordinates : Vec3 -> Mat4 -> Maybe Vec3
-cellClickCoordinates destination transform =
-    [ ( Mat4.transform transform (vec3 -0.5 0.5 -0.5)
-      , Mat4.transform transform (vec3 -0.5 -0.5 -0.5)
-      , Mat4.transform transform (vec3 0.5 0.5 -0.5)
-      )
-    , ( Mat4.transform transform (vec3 0.5 0.5 -0.5)
-      , Mat4.transform transform (vec3 -0.5 -0.5 -0.5)
-      , Mat4.transform transform (vec3 0.5 -0.5 -0.5)
-      )
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    [ ( always True, Window.resizes Resize )
+    , ( check animate, AnimationFrame.diffs Tick )
+    , ( check mouseDown, Mouse.downs Down )
+    , ( check mouseMove, Mouse.moves Move )
+    , ( check mouseUp, Mouse.ups Up )
     ]
-        |> List.filterMap (rayTriangleIntersect origin destination)
-        |> List.head
+        |> List.filter (Tuple.first >> (|>) model)
+        |> List.map Tuple.second
+        |> Sub.batch
 
 
-rotationDirection : Cell -> Model -> Mouse.Position -> Mouse.Position -> ( Float, Float, Float )
-rotationDirection cell model source dest =
-    let
-        rotation =
-            Quaternion.toMat4 model.rotation
+mouseDown : InteractionHandler Mouse.Position
+mouseDown state =
+    case state of
+        WaitForUserInput ->
+            Just Logic.mouseDown
 
-        inverseRot =
-            Mat4.inverseOrthonormal rotation
-
-        fromCoord =
-            rayPlaneIntersect
-                origin
-                (getMousePosition model source)
-                (Mat4.transform rotation (cellPosition cell))
-                (Mat4.transform rotation cell.normal)
-
-        toCoord =
-            rayPlaneIntersect
-                origin
-                (getMousePosition model dest)
-                (Mat4.transform rotation (cellPosition cell))
-                (Mat4.transform rotation cell.normal)
-    in
-        Maybe.map2 Vec3.sub fromCoord toCoord
-            |> Maybe.map (Mat4.transform inverseRot >> Vec3.toTuple)
-            |> Maybe.withDefault ( 0, 0, 0 )
+        _ ->
+            Nothing
 
 
-getMousePosition : Model -> Mouse.Position -> Vec3
-getMousePosition model mouse =
-    let
-        homogeneousClipCoordinates =
-            Vec4.vec4
-                (toFloat mouse.x * 2 / toFloat model.window.width - 1)
-                (1 - toFloat mouse.y * 2 / toFloat model.window.height)
-                -1
-                1
+mouseMove : InteractionHandler Mouse.Position
+mouseMove state =
+    case state of
+        Rotating source ->
+            Just (Logic.rotation source)
 
-        invertedProjectionMatrix =
-            Maybe.withDefault Mat4.identity (Mat4.inverse (View.perspective model))
+        TransformStart cell position ->
+            Just (Logic.transformStart cell position)
 
-        vec4CameraCoordinates =
-            transform4 invertedProjectionMatrix homogeneousClipCoordinates
+        Transforming cell transformation source ->
+            Just (Logic.transforming cell transformation source)
 
-        direction =
-            Vec4.vec4
-                (Vec4.getX vec4CameraCoordinates)
-                (Vec4.getY vec4CameraCoordinates)
-                -1
-                0
+        _ ->
+            Nothing
 
-        vec4WorldCoordinates =
-            transform4 (Mat4.inverseOrthonormal (View.camera model)) direction
 
-        vec3WorldCoordinates =
-            vec3
-                (Vec4.getX vec4WorldCoordinates)
-                (Vec4.getY vec4WorldCoordinates)
-                (Vec4.getZ vec4WorldCoordinates)
-    in
-        Vec3.normalize vec3WorldCoordinates
+mouseUp : InteractionHandler Mouse.Position
+mouseUp state =
+    case state of
+        Initial ->
+            Just (\_ m -> Logic.startAnimationStart m)
+
+        Transforming _ transformation _ ->
+            Just (\_ m -> (Logic.transformationAnimationStart transformation m))
+
+        Rotating _ ->
+            Just (\_ m -> Logic.rotationEnd m)
+
+        _ ->
+            Nothing
+
+
+animate : InteractionHandler Time
+animate state =
+    case state of
+        Initial ->
+            Just Logic.startAnimation
+
+        Starting animation ->
+            Just (Logic.startingAnimation animation)
+
+        Ending animation ->
+            Just (Logic.endingAnimation animation)
+
+        Animating transformation transformations animation ->
+            Just (Logic.transformationAnimation transformation transformations animation)
+
+        _ ->
+            Nothing
