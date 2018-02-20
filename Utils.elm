@@ -84,8 +84,15 @@ randomRotation =
 
 randomAngle : Generator Float
 randomAngle =
-    Random.int -2 2
-        |> Random.map (toFloat >> (*) (pi / 2))
+    Random.map2
+        (\n negative ->
+            if negative then
+                toFloat n * pi / 2
+            else
+                toFloat n * pi / -2
+        )
+        (Random.int 1 2)
+        Random.bool
 
 
 cellRotationCoord : Rotation -> Cell -> Int
