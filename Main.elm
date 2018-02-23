@@ -121,6 +121,9 @@ mouseUp state =
         Initial ->
             Just (\_ m -> Logic.startAnimationStart m)
 
+        TransformStart _ _ ->
+            Just (\_ m -> ( { m | state = WaitForUserInput }, Cmd.none ))
+
         Transforming _ transformation _ ->
             Just (\_ m -> (Logic.transformationAnimationStart transformation m))
 
