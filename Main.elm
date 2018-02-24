@@ -125,7 +125,7 @@ mouseUp state =
             Just (\_ m -> ( { m | state = WaitForUserInput }, Cmd.none ))
 
         Transforming _ transformation _ ->
-            Just (\_ m -> (Logic.transformationAnimationStart transformation m))
+            Just (\_ m -> Logic.transformationAnimationStart transformation m)
 
         Rotating _ ->
             Just (\_ m -> Logic.rotationEnd m)

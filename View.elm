@@ -173,9 +173,9 @@ view model =
                     texture
                     (perspective model)
                     (camera model)
-                    (Mat4.makeScale3 0.08 0.08 0.08
-                        |> Mat4.mul (Mat4.makeTranslate3 1 0 0)
-                        |> Mat4.mul (Mat4.makeRotate (pi / 15) Vec3.j)
+                    (Mat4.makeScale3 0.08 0.08 0.4
+                        |> Mat4.mul (Mat4.makeTranslate3 0.9 -2 0)
+                        |> Mat4.mul (Mat4.makeRotate (pi / 14) Vec3.j)
                         |> Mat4.mul (Mat4.makeTranslate3 0 -0.6 -11)
                     )
                     Text.clickToStart

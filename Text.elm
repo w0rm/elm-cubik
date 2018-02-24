@@ -13,7 +13,7 @@ import MogeeFont exposing (Letter)
 
 clickToStart : Mesh Vertex
 clickToStart =
-    text "Click\nto Start"
+    text "Click\nto Play"
 
 
 render : Texture -> Mat4 -> Mat4 -> Mat4 -> Mesh Vertex -> Entity
@@ -92,13 +92,16 @@ addPixel x y textureX textureY =
 
         white =
             vec3 0.2 0.2 0.3
+
+        darkblue =
+            vec3 0.003 0.003 0.251
     in
-        face rft rfb lfb lft texturePosition white
+        face lfb rfb rft lft texturePosition white
             >> face rft rfb rbb rbt texturePosition white
-            >> face rft lft lbt rbt texturePosition white
+            >> face lbt lft rft rbt texturePosition white
             >> face rfb lfb lbb rbb texturePosition red
-            >> face lft lfb lbb lbt texturePosition white
-            >> face rbt rbb lbb lbt texturePosition white
+            >> face lbb lfb lft lbt texturePosition white
+            >> face rbb lbb lbt rbt texturePosition white
 
 
 face : Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec2 -> Vec3 -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )

@@ -12,7 +12,7 @@ import Quaternion
 
 startOrigin : Vec3
 startOrigin =
-    Vec3.vec3 0 1 -18
+    Vec3.vec3 0 -2 -18
 
 
 startDestination : Vec3
