@@ -14,4 +14,4 @@ rm dest/assets/elm.js
 sed 's/\/_compile\/Main\.elm/assets\/elm\.min\.js/g' index.html > dest/index.html
 
 # publish to itch.io
-butler push dest unsoundscapes/cubik:html
+./butler push dest unsoundscapes/cubik:html
