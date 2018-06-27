@@ -1,14 +1,13 @@
 module Text exposing (clickToStart, render)
 
+import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector2 as Vec2 exposing (Vec2, vec2)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Math.Matrix4 as Mat4 exposing (Mat4)
-import WebGL exposing (Texture, Shader, Mesh, Entity)
-import WebGL.Texture as Texture exposing (Error, defaultOptions)
-import WebGL exposing (Entity, Mesh)
+import MogeeFont exposing (Letter)
+import WebGL exposing (Entity, Mesh, Shader, Texture)
 import WebGL.Settings
 import WebGL.Settings.DepthTest
-import MogeeFont exposing (Letter)
+import WebGL.Texture as Texture exposing (Error, defaultOptions)
 
 
 clickToStart : Mesh Vertex
@@ -41,17 +40,17 @@ text =
     MogeeFont.text addLetter >> WebGL.triangles
 
 
-addLetter : MogeeFont.Letter -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
-addLetter { x, y, width, height, textureX, textureY } letters =
+addLetter : MogeeFont.Letter -> List ( Vertex, Vertex, Vertex )
+addLetter { x, y, width, height, textureX, textureY } =
     List.foldl
         (\dx l ->
             List.foldl
                 (\dy -> addPixel (x + toFloat dx) (y + toFloat dy) (textureX + toFloat dx) (textureY + toFloat dy))
                 l
-                (List.range 0 (round height))
+                (List.range 0 (round height - 1))
         )
-        letters
-        (List.range 0 (round width))
+        []
+        (List.range 0 (round width - 1))
 
 
 addPixel : Float -> Float -> Float -> Float -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )
@@ -96,12 +95,12 @@ addPixel x y textureX textureY =
         darkblue =
             vec3 0.003 0.003 0.251
     in
-        face lfb rfb rft lft texturePosition white
-            >> face rft rfb rbb rbt texturePosition white
-            >> face lbt lft rft rbt texturePosition white
-            >> face rfb lfb lbb rbb texturePosition red
-            >> face lbb lfb lft lbt texturePosition white
-            >> face rbb lbb lbt rbt texturePosition white
+    face lfb rfb rft lft texturePosition white
+        >> face rft rfb rbb rbt texturePosition white
+        >> face lbt lft rft rbt texturePosition white
+        >> face rfb lfb lbb rbb texturePosition red
+        >> face lbb lfb lft lbt texturePosition white
+        >> face rbb lbb lbt rbt texturePosition white
 
 
 face : Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec2 -> Vec3 -> List ( Vertex, Vertex, Vertex ) -> List ( Vertex, Vertex, Vertex )

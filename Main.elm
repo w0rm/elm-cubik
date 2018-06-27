@@ -1,20 +1,20 @@
 module Cubik exposing (main)
 
+import AnimationFrame
+import Decode
 import Html exposing (Html, div)
-import WebGL.Texture as Texture exposing (defaultOptions)
-import Window
+import InteractionHandler exposing (InteractionHandler, check, handle)
+import Json.Decode as Decode
+import Json.Encode exposing (Value)
+import Logic
+import MogeeFont
 import Mouse
 import Task
+import Time exposing (Time)
 import Types exposing (..)
 import View exposing (view)
-import Decode
-import Json.Encode exposing (Value)
-import Json.Decode as Decode
-import AnimationFrame
-import MogeeFont
-import InteractionHandler exposing (check, handle, InteractionHandler)
-import Time exposing (Time)
-import Logic
+import WebGL.Texture as Texture exposing (defaultOptions)
+import Window
 
 
 main : Program Value Model Msg
@@ -39,7 +39,7 @@ init value =
                 | magnify = Texture.nearest
                 , flipY = False
             }
-            MogeeFont.fontSrc
+            MogeeFont.spriteSrc
             |> Task.attempt FontLoaded
         ]
     )
