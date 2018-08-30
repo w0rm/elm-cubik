@@ -1,11 +1,11 @@
-module Utils exposing (..)
+module Utils exposing (cellPosition, cellRotationCoord, checkSolved, checkSolvedHelp, colorToInt, colorToVec3, interpolateVec3, makeRotation, randomAngle, randomRotation, randomTransformation, randomTransformations, randomTransformationsHelp, rayPlaneIntersect, rayTriangleIntersect, rotateCell, round3, transform4)
 
-import Types exposing (..)
-import Math.Vector4 as Vec4 exposing (Vec4, vec4)
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Math.Matrix4 as Mat4 exposing (Mat4)
-import Random exposing (Generator)
 import Dict exposing (Dict)
+import Math.Matrix4 as Mat4 exposing (Mat4)
+import Math.Vector3 as Vec3 exposing (Vec3, vec3)
+import Math.Vector4 as Vec4 exposing (Vec4, vec4)
+import Random exposing (Generator)
+import Types exposing (..)
 
 
 checkSolved : List Cell -> Bool
@@ -27,17 +27,18 @@ checkSolvedHelp memo list =
                 roundNormal =
                     round3 normal
             in
-                case Dict.get intColor memo of
-                    Just checkedNormal ->
-                        if roundNormal == checkedNormal then
-                            checkSolvedHelp memo rest
-                        else
-                            False
+            case Dict.get intColor memo of
+                Just checkedNormal ->
+                    if roundNormal == checkedNormal then
+                        checkSolvedHelp memo rest
 
-                    Nothing ->
-                        checkSolvedHelp
-                            (Dict.insert (colorToInt color) roundNormal memo)
-                            rest
+                    else
+                        False
+
+                Nothing ->
+                    checkSolvedHelp
+                        (Dict.insert (colorToInt color) roundNormal memo)
+                        rest
 
 
 randomTransformations : Int -> Generator (List Transformation)
@@ -51,6 +52,7 @@ randomTransformationsHelp : Int -> Generator (List Transformation) -> Generator 
 randomTransformationsHelp i =
     if i == 0 then
         identity
+
     else
         Random.andThen
             (\transforms -> Random.map (\t -> t :: transforms) randomTransformation)
@@ -86,13 +88,14 @@ randomAngle : Generator Float
 randomAngle =
     Random.map2
         (\n negative ->
-            if negative then
+            if negative == 1 then
                 toFloat n * pi / 2
+
             else
                 toFloat n * pi / -2
         )
         (Random.int 1 2)
-        Random.bool
+        (Random.int 0 1)
 
 
 cellRotationCoord : Rotation -> Cell -> Int
@@ -114,10 +117,10 @@ rotateCell rotation angle cell =
         rotationMat4 =
             makeRotation rotation angle
     in
-        { cell
-            | transform = Mat4.mul rotationMat4 cell.transform
-            , normal = Mat4.transform rotationMat4 cell.normal
-        }
+    { cell
+        | transform = Mat4.mul rotationMat4 cell.transform
+        , normal = Mat4.transform rotationMat4 cell.normal
+    }
 
 
 makeRotation : Rotation -> Float -> Mat4
@@ -145,20 +148,20 @@ transform4 mat v =
         r =
             Mat4.toRecord mat
     in
-        vec4
-            (Vec4.dot (vec4 r.m11 r.m12 r.m13 r.m14) v)
-            (Vec4.dot (vec4 r.m21 r.m22 r.m23 r.m24) v)
-            (Vec4.dot (vec4 r.m31 r.m32 r.m33 r.m34) v)
-            (Vec4.dot (vec4 r.m41 r.m42 r.m43 r.m44) v)
+    vec4
+        (Vec4.dot (vec4 r.m11 r.m12 r.m13 r.m14) v)
+        (Vec4.dot (vec4 r.m21 r.m22 r.m23 r.m24) v)
+        (Vec4.dot (vec4 r.m31 r.m32 r.m33 r.m34) v)
+        (Vec4.dot (vec4 r.m41 r.m42 r.m43 r.m44) v)
 
 
 round3 : Vec3 -> ( Int, Int, Int )
 round3 v =
     let
-        ( x, y, z ) =
-            Vec3.toTuple v
+        { x, y, z } =
+            Vec3.toRecord v
     in
-        ( round x, round y, round z )
+    ( round x, round y, round z )
 
 
 rayPlaneIntersect : Vec3 -> Vec3 -> Vec3 -> Vec3 -> Maybe Vec3
@@ -170,14 +173,15 @@ rayPlaneIntersect rayOrigin rayDirection point normal =
         vectorDotNormal =
             Vec3.dot rayDirection normal
     in
-        if vectorDotNormal > -epsilon then
-            Nothing
-        else
-            let
-                t =
-                    Vec3.dot (Vec3.sub point rayOrigin) normal / vectorDotNormal
-            in
-                Just (Vec3.add rayOrigin (Vec3.scale t rayDirection))
+    if vectorDotNormal > -epsilon then
+        Nothing
+
+    else
+        let
+            t =
+                Vec3.dot (Vec3.sub point rayOrigin) normal / vectorDotNormal
+        in
+        Just (Vec3.add rayOrigin (Vec3.scale t rayDirection))
 
 
 rayTriangleIntersect : Vec3 -> Vec3 -> ( Vec3, Vec3, Vec3 ) -> Maybe Vec3
@@ -198,30 +202,33 @@ rayTriangleIntersect rayOrigin rayDirection ( triangle0, triangle2, triangle1 ) 
         det =
             Vec3.dot edge1 pvec
     in
-        if det < epsilon then
+    if det < epsilon then
+        Nothing
+
+    else
+        let
+            tvec =
+                Vec3.sub rayOrigin triangle0
+
+            u =
+                Vec3.dot tvec pvec
+        in
+        if u < 0 || u > det then
             Nothing
+
         else
             let
-                tvec =
-                    Vec3.sub rayOrigin triangle0
+                qvec =
+                    Vec3.cross tvec edge1
 
-                u =
-                    Vec3.dot tvec pvec
+                v =
+                    Vec3.dot rayDirection qvec
             in
-                if u < 0 || u > det then
-                    Nothing
-                else
-                    let
-                        qvec =
-                            Vec3.cross tvec edge1
+            if v < 0 || u + v > det then
+                Nothing
 
-                        v =
-                            Vec3.dot rayDirection qvec
-                    in
-                        if v < 0 || u + v > det then
-                            Nothing
-                        else
-                            Just (Vec3.add rayOrigin (Vec3.scale ((Vec3.dot edge2 qvec) / det) (rayDirection)))
+            else
+                Just (Vec3.add rayOrigin (Vec3.scale (Vec3.dot edge2 qvec / det) rayDirection))
 
 
 colorToInt : Color -> Int

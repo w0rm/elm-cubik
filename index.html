@@ -1,6 +1,5 @@
 <!DOCTYPE HTML>
 <html>
-
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
@@ -19,9 +18,9 @@
         }
     </style>
 </head>
-
 <body>
-    <script src="/_compile/Main.elm"></script>
+    <div id="elm"></div>
+    <script src="elm.js"></script>
     <script>
         // Load initial state from localStorage
         var initialState;
@@ -31,11 +30,17 @@
             initialState = {};
         }
 
-        var app = Elm.Cubik.fullscreen(Object.assign({
-            width: innerWidth,
-            height: innerHeight,
-            devicePixelRatio: devicePixelRatio
-        }, initialState || {}));
+        var app = Elm.Main.init({
+            node: document.getElementById('elm'),
+            flags: Object.assign(
+                {
+                    width: innerWidth,
+                    height: innerHeight,
+                    devicePixelRatio: devicePixelRatio
+                },
+                initialState || {}
+            )
+        });
 
         app.ports.save.subscribe(function (state) {
             // Save game state to localStorage
@@ -53,5 +58,4 @@
         window.focus();
     </script>
 </body>
-
 </html>

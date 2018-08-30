@@ -1,17 +1,17 @@
 module Encode exposing (model)
 
+import Dict
 import Json.Encode as Encode exposing (Value)
-import Types exposing (..)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (Vec3)
 import Math.Vector4 as Vec4 exposing (Vec4)
-import Dict
+import Types exposing (..)
 
 
 model : Model -> String
 model { cubik, rotation } =
     Encode.object
-        [ ( "cubik", Encode.list (List.map cell cubik) )
+        [ ( "cubik", Encode.list cell cubik )
         , ( "rotation", vec4 rotation )
         ]
         |> Encode.encode 2
@@ -32,9 +32,8 @@ mat4 mat =
         r =
             Mat4.toRecord mat
     in
-        [ r.m11, r.m21, r.m31, r.m41, r.m12, r.m22, r.m32, r.m42, r.m13, r.m23, r.m33, r.m43, r.m14, r.m24, r.m34, r.m44 ]
-            |> List.map Encode.float
-            |> Encode.list
+    [ r.m11, r.m21, r.m31, r.m41, r.m12, r.m22, r.m32, r.m42, r.m13, r.m23, r.m33, r.m43, r.m14, r.m24, r.m34, r.m44 ]
+        |> Encode.list Encode.float
 
 
 vec3 : Vec3 -> Value
@@ -43,9 +42,8 @@ vec3 vec =
         r =
             Vec3.toRecord vec
     in
-        [ r.x, r.y, r.z ]
-            |> List.map Encode.float
-            |> Encode.list
+    [ r.x, r.y, r.z ]
+        |> Encode.list Encode.float
 
 
 vec4 : Vec4 -> Value
@@ -54,9 +52,8 @@ vec4 vec =
         { x, y, z, w } =
             Vec4.toRecord vec
     in
-        [ x, y, z, w ]
-            |> List.map Encode.float
-            |> Encode.list
+    [ x, y, z, w ]
+        |> Encode.list Encode.float
 
 
 color : Color -> Value

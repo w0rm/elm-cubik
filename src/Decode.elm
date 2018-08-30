@@ -1,13 +1,12 @@
-module Decode exposing (model, origin, destination, startOrigin, startDestination, initial, defaultRotation)
+module Decode exposing (defaultRotation, destination, initial, model, origin, startDestination, startOrigin)
 
-import Json.Decode as Decode exposing (Value, Decoder)
-import Types exposing (..)
+import Json.Decode as Decode exposing (Decoder, Value)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (Vec3)
 import Math.Vector4 as Vec4 exposing (Vec4)
-import Utils exposing (..)
-import Window
 import Quaternion
+import Types exposing (..)
+import Utils exposing (..)
 
 
 startOrigin : Vec3
@@ -36,14 +35,15 @@ model =
         (\width height devicePixelRatio rotation cubik ->
             { initial
                 | rotation = rotation
-                , window = Window.Size width height
+                , width = width
+                , height = height
                 , devicePixelRatio = devicePixelRatio
                 , cubik = cubik
                 , state = WaitForUserInput
             }
         )
-        (Decode.field "width" Decode.int)
-        (Decode.field "height" Decode.int)
+        (Decode.field "width" Decode.float)
+        (Decode.field "height" Decode.float)
         (Decode.field "devicePixelRatio" Decode.float)
         (Decode.field "rotation" vec4)
         (Decode.field "cubik" (Decode.list cell))
@@ -53,7 +53,8 @@ initial : Model
 initial =
     { state = Initial
     , rotation = defaultRotation
-    , window = Window.Size 0 0
+    , width = 0
+    , height = 0
     , devicePixelRatio = 2
     , cubik = defaultCubik
     , time = 0
@@ -92,7 +93,7 @@ color =
                 "green" ->
                     Decode.succeed Green
 
-                c ->
+                _ ->
                     Decode.fail ("Unknown color: " ++ c)
         )
         Decode.string
@@ -146,7 +147,7 @@ defaultRotation : Vec4
 defaultRotation =
     Quaternion.identity
         |> Quaternion.mul (Quaternion.fromAngleAxis (pi / 4) Vec3.j)
-        |> Quaternion.mul (Quaternion.fromAngleAxis (-0.95531661779) Vec3.i)
+        |> Quaternion.mul (Quaternion.fromAngleAxis -0.95531661779 Vec3.i)
 
 
 defaultCubik : List Cell
@@ -155,33 +156,33 @@ defaultCubik =
 
 
 makeSide : Color -> List Cell
-makeSide color =
-    case color of
+makeSide clr =
+    case clr of
         Green ->
-            frontFace color
+            frontFace clr
 
         Blue ->
-            List.map (rotateCell XAxis pi) (frontFace color)
+            List.map (rotateCell XAxis pi) (frontFace clr)
 
         White ->
-            List.map (rotateCell XAxis (pi / 2)) (frontFace color)
+            List.map (rotateCell XAxis (pi / 2)) (frontFace clr)
 
         Yellow ->
-            List.map (rotateCell XAxis (-pi / 2)) (frontFace color)
+            List.map (rotateCell XAxis (-pi / 2)) (frontFace clr)
 
         Orange ->
-            List.map (rotateCell YAxis (-pi / 2)) (frontFace color)
+            List.map (rotateCell YAxis (-pi / 2)) (frontFace clr)
 
         Red ->
-            List.map (rotateCell YAxis (pi / 2)) (frontFace color)
+            List.map (rotateCell YAxis (pi / 2)) (frontFace clr)
 
 
 frontFace : Color -> List Cell
-frontFace color =
+frontFace clr =
     List.range -1 1
         |> List.concatMap
             (\x ->
                 List.map
-                    (\y -> Cell (Mat4.makeTranslate3 (toFloat x) (toFloat y) -1) color (Vec3.vec3 0 0 -1))
+                    (\y -> Cell (Mat4.makeTranslate3 (toFloat x) (toFloat y) -1) clr (Vec3.vec3 0 0 -1))
                     (List.range -1 1)
             )
