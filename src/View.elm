@@ -1,52 +1,22 @@
-module View exposing (view, perspective, camera, cellAttributes)
+module View exposing (cellAttributes, view)
 
-import Html.Attributes exposing (width, height, style)
-import Html exposing (Html, div)
-import WebGL exposing (Mesh, Shader, Entity)
-import WebGL.Settings
-import WebGL.Settings.DepthTest
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Math.Matrix4 as Mat4 exposing (Mat4)
-import Types exposing (..)
-import Utils exposing (..)
-import Touch
-import SingleTouch
-import Mouse
 import Animation
+import Decode
+import Html exposing (Attribute, Html, div)
+import Html.Attributes exposing (height, style, width)
+import Html.Events.Extra.Mouse as Mouse
+import Html.Events.Extra.Touch as Touch
+import InteractionHandler exposing (check, mouseDown, mouseMove, mouseUp)
+import Logic
+import Math.Matrix4 as Mat4 exposing (Mat4)
+import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Quaternion
 import Text
-import Decode
-
-
-perspective : Model -> Mat4
-perspective { window } =
-    Mat4.makePerspective
-        45
-        (toFloat window.width / toFloat window.height)
-        0.01
-        100
-
-
-camera : Model -> Mat4
-camera model =
-    case model.state of
-        Initial ->
-            Mat4.makeLookAt Decode.startOrigin Decode.startDestination Vec3.j
-
-        Starting animation ->
-            Mat4.makeLookAt
-                (Utils.interpolateVec3 (Animation.animate model.time animation) Decode.startOrigin Decode.origin)
-                (Utils.interpolateVec3 (Animation.animate model.time animation) Decode.startDestination Decode.destination)
-                Vec3.j
-
-        Ending animation ->
-            Mat4.makeLookAt
-                (Utils.interpolateVec3 (Animation.animate model.time animation) Decode.origin Decode.startOrigin)
-                (Utils.interpolateVec3 (Animation.animate model.time animation) Decode.destination Decode.startDestination)
-                Vec3.j
-
-        _ ->
-            Mat4.makeLookAt Decode.origin Decode.destination Vec3.j
+import Types exposing (..)
+import Utils exposing (..)
+import WebGL exposing (Entity, Mesh, Shader)
+import WebGL.Settings
+import WebGL.Settings.DepthTest
 
 
 rotation : Model -> Mat4
@@ -121,15 +91,15 @@ cubeMesh =
         lbb =
             vec3 -0.5 -0.5 -0.5
     in
-        [ face rft rfb rbb rbt
-        , face rft rfb lfb lft
-        , face rft lft lbt rbt
-        , face rfb lfb lbb rbb
-        , face lft lfb lbb lbt
-        , face rbt rbb lbb lbt
-        ]
-            |> List.concat
-            |> WebGL.triangles
+    [ face rft rfb rbb rbt
+    , face rft rfb lfb lft
+    , face rft lft lbt rbt
+    , face rfb lfb lbb rbb
+    , face lft lfb lbb lbt
+    , face rbt rbb lbb lbt
+    ]
+        |> List.concat
+        |> WebGL.triangles
 
 
 face : Vec3 -> Vec3 -> Vec3 -> Vec3 -> List ( Attributes, Attributes, Attributes )
@@ -139,13 +109,26 @@ face a b c d =
     ]
 
 
-touchToMouse : Touch.Coordinates -> Mouse.Position
-touchToMouse coordinates =
-    let
-        ( x, y ) =
-            Touch.clientPos coordinates
-    in
-        Mouse.Position (round x) (round y)
+touchCoordinates : Touch.Event -> ( Float, Float )
+touchCoordinates touchEvent =
+    List.head touchEvent.changedTouches
+        |> Maybe.map .clientPos
+        |> Maybe.withDefault ( 0, 0 )
+
+
+{-| Only add necessary events
+-}
+events : Model -> List (Attribute Msg)
+events model =
+    [ ( check mouseDown, Touch.onStart (touchCoordinates >> Down) )
+    , ( check mouseMove, Touch.onMove (touchCoordinates >> Move) )
+    , ( check mouseUp, Touch.onEnd (touchCoordinates >> Up) )
+    , ( check mouseDown, Mouse.onDown (.pagePos >> Down) )
+    , ( check mouseMove, Mouse.onMove (.pagePos >> Move) )
+    , ( check mouseUp, Mouse.onUp (.pagePos >> Up) )
+    ]
+        |> List.filter (Tuple.first >> (|>) model)
+        |> List.map Tuple.second
 
 
 view : Model -> Html Msg
@@ -156,23 +139,22 @@ view model =
         , WebGL.antialias
         , WebGL.clearColor 0.003 0.003 0.251 1
         ]
-        [ width (round (toFloat model.window.width * model.devicePixelRatio))
-        , height (round (toFloat model.window.height * model.devicePixelRatio))
-        , style
-            [ ( "display", "block" )
-            , ( "width", toString model.window.width ++ "px" )
-            , ( "height", toString model.window.height ++ "px" )
-            ]
-        , SingleTouch.onStart (touchToMouse >> Down)
-        , SingleTouch.onMove (touchToMouse >> Move)
-        , SingleTouch.onEnd (touchToMouse >> Up)
-        ]
+        ([ width (round (model.width * model.devicePixelRatio))
+         , height (round (model.height * model.devicePixelRatio))
+         , style "position" "absolute"
+         , style "left" "0"
+         , style "top" "0"
+         , style "width" (String.fromFloat model.width ++ "px")
+         , style "height" (String.fromFloat model.height ++ "px")
+         ]
+            ++ events model
+        )
         ((case model.font of
             Just texture ->
                 [ Text.render
                     texture
-                    (perspective model)
-                    (camera model)
+                    (Logic.perspective model)
+                    (Logic.camera model)
                     (Mat4.makeScale3 0.08 0.08 0.4
                         |> Mat4.mul (Mat4.makeTranslate3 0.9 -2 0)
                         |> Mat4.mul (Mat4.makeRotate (pi / 14) Vec3.j)
@@ -199,12 +181,14 @@ cellEntity model cell =
                 Transforming activeCell { coord, axis, angle } _ ->
                     if cellRotationCoord axis cell == coord then
                         ( cell == activeCell, Mat4.mul (makeRotation axis angle) )
+
                     else
                         ( False, identity )
 
                 Animating { coord, axis, angle } _ animation ->
                     if cellRotationCoord axis cell == coord then
                         ( False, Mat4.mul (makeRotation axis (Animation.animate model.time animation)) )
+
                     else
                         ( False, identity )
 
@@ -214,37 +198,38 @@ cellEntity model cell =
         highlightFunc =
             if isHighlighted then
                 Vec3.scale 0.6
+
             else
                 identity
     in
-        (++)
-            [ WebGL.entityWith
-                [ WebGL.Settings.cullFace WebGL.Settings.front
-                , WebGL.Settings.DepthTest.default
-                ]
-                vertexShader
-                fragmentShader
-                cellMesh
-                { camera = camera model
-                , perspective = perspective model
-                , rotation = rotation model
-                , transform = rotationFunc cell.transform
-                , color = highlightFunc (colorToVec3 cell.color)
-                }
-            , WebGL.entityWith
-                [ WebGL.Settings.DepthTest.default
-                , WebGL.Settings.polygonOffset 5 5
-                ]
-                vertexShader
-                fragmentShader
-                cubeMesh
-                { camera = camera model
-                , perspective = perspective model
-                , rotation = rotation model
-                , transform = rotationFunc cell.transform
-                , color = vec3 0.003 0.003 0.251
-                }
+    (++)
+        [ WebGL.entityWith
+            [ WebGL.Settings.cullFace WebGL.Settings.front
+            , WebGL.Settings.DepthTest.default
             ]
+            vertexShader
+            fragmentShader
+            cellMesh
+            { camera = Logic.camera model
+            , perspective = Logic.perspective model
+            , rotation = rotation model
+            , transform = rotationFunc cell.transform
+            , color = highlightFunc (colorToVec3 cell.color)
+            }
+        , WebGL.entityWith
+            [ WebGL.Settings.DepthTest.default
+            , WebGL.Settings.polygonOffset 5 5
+            ]
+            vertexShader
+            fragmentShader
+            cubeMesh
+            { camera = Logic.camera model
+            , perspective = Logic.perspective model
+            , rotation = rotation model
+            , transform = rotationFunc cell.transform
+            , color = vec3 0.003 0.003 0.251
+            }
+        ]
 
 
 vertexShader : Shader Attributes Uniforms {}

@@ -4,10 +4,10 @@ import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector2 as Vec2 exposing (Vec2, vec2)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import MogeeFont exposing (Letter)
-import WebGL exposing (Entity, Mesh, Shader, Texture)
+import WebGL exposing (Entity, Mesh, Shader)
 import WebGL.Settings
 import WebGL.Settings.DepthTest
-import WebGL.Texture as Texture exposing (Error, defaultOptions)
+import WebGL.Texture as Texture exposing (Error, Texture, defaultOptions)
 
 
 clickToStart : Mesh Vertex
