@@ -206,7 +206,14 @@ transforming cell transformation source dest model =
                 0
     in
     ( { model
-        | state = Transforming cell { transformation | angle = angle } source
+        | state =
+            Transforming
+                cell
+                -- only allow to rotate pi/2 max
+                { transformation
+                    | angle = clamp (-pi / 2) (pi / 2) angle
+                }
+                source
       }
     , Cmd.none
     )
